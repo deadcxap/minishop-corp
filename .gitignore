@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Plugin development runtime, caches and generated artifacts
+.local/
+node_modules/
+frontend/dist/
+playwright-report/
+test-results/

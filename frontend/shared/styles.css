@@ -1,0 +1,12 @@
+.minishop-corp {
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid var(--border, #d6dbe3);
+  border-radius: var(--radius, 16px);
+  background: var(--bg, #fff);
+  color: var(--text, #152238);
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.minishop-corp h2 { margin: 0 0 12px; font-size: 1.2rem; line-height: 1.4; }
+.minishop-corp p { margin: 0; color: var(--muted, #596579); line-height: 1.6; }
