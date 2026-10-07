@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>minishop-corp · Development preview</title>
+    <style>
+      :root { --bg: #fff; --text: #152238; --border: #d6dbe3; --muted: #596579; --radius: 16px; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #f5f7fa; color: var(--text); font: 16px system-ui, sans-serif; }
+      main { max-width: 960px; margin: 40px auto; padding: 16px; }
+      .development-label { margin-bottom: 20px; font: 13px monospace; }
+      html[data-theme="dark"] { --bg: #172131; --text: #e9effa; --border: #33425a; --muted: #b3bfd2; }
+      html[data-theme="dark"] body { background: #101722; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="development-label">minishop-corp / development host / synthetic accounts</p>
+      <div id="view"></div>
+    </main>
+    <script type="module" src="/preview.mjs"></script>
+  </body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "id": "minishop-corp",
+  "backend": { "entry_point": "minishop_corp:plugin" },
+  "core_compatibility": { "mode": "capabilities", "requires": {"user_ui": 1, "ui_composition": 1} },
+  "frontend": {
+    "entry": "admin/index.js",
+    "styles": ["admin/index.css"],
+    "sections": [{
+      "id": "corporate-contracts",
+      "view": "corporate-contracts",
+      "group": "operations",
+      "order": 100,
+      "i18nKey": "admin_minishop_corp_title",
+      "fallbackLabel": "Corporate contracts",
+      "titleI18nKey": "admin_minishop_corp_title",
+      "fallbackTitle": "Corporate contracts"
+    }],
+    "user": {
+      "entry": "customer/index.js",
+      "styles": ["customer/index.css"],
+      "pages": [{
+        "id": "corporate-home",
+        "view": "corporate-home",
+        "label": "For corporate customers",
+        "i18nKey": "wa_minishop_corp_title",
+        "icon": "shield",
+        "order": 100
+      }]
+    }
+  }
+}

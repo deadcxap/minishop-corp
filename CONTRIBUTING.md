@@ -50,6 +50,19 @@ Node 24 запускается из контейнера, закреплённо
 Для обновления Python lock используйте `bash scripts/lock-python.sh`; версии
 зависимостей host ограничены requirements закреплённого Minishop.
 
+Для проверки настоящего Minishop:
+
+```bash
+bash scripts/stand.sh up
+bash scripts/stand.sh check
+bash scripts/browser-check.sh
+bash scripts/stand.sh down
+```
+
+Изоляция стенда, тестовый подписанный пакет, preview, порты и CI описаны в
+[инструкции окружения](docs/development.md). Browser-проверки используют Chromium
+в контейнере и подписанные ESM-файлы из работающего Minishop.
+
 Если обязательную проверку нельзя запустить, укажите причину и оставшуюся
 непроверенную границу; этап с такой обязательной проверкой не завершён.
 
