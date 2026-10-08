@@ -35,5 +35,10 @@
   "minishop_corp_operation_busy": "Wait for the current access change to finish. Contact support if it takes too long.",
   "minishop_corp_operation_failed": "The access change could not be confirmed. It will be retried automatically.",
   "wa_minishop_corp_payment_notice": "Do not pay for a personal subscription while in a corporate group. Contact support if you have a problem.",
-  "wa_minishop_corp_expired_notice": "The corporate contract has expired. You can wait for renewal or leave the group and pay for your own subscription."
+  "wa_minishop_corp_expired_notice": "The corporate contract has expired. You can wait for renewal or leave the group and pay for your own subscription.",
+  "wa_minishop_corp_data_available": "Minishop data",
+  "wa_minishop_corp_data_stored": "Stored Minishop data; last update time is unknown",
+  "wa_minishop_corp_data_stale": "Showing the last available data: refresh is unavailable",
+  "wa_minishop_corp_data_unavailable": "No data",
+  "wa_minishop_corp_avatar_missing": "No avatar"
 }

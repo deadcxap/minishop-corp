@@ -6,7 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .contracts_types import ContractPage
 from .membership_types import OperationInfo
 from .storage.schema import MembershipState
 
@@ -52,10 +51,6 @@ class MemberInfo(BaseModel):
     statistics: MemberStatistics
     avatar_path: str | None
     operation: OperationInfo | None
-
-
-class MemberPage(ContractPage):
-    pass
 
 
 class MembersPage(BaseModel):

@@ -98,7 +98,12 @@ async def main() -> None:
             404,
         )
         missing_contract = "00000000-0000-4000-8000-000000000000"
-        for suffix in ("/synchronization", "/synchronization/operations"):
+        for suffix in (
+            "/synchronization",
+            "/synchronization/operations",
+            "/members",
+            f"/members/{missing_contract}/avatar",
+        ):
             path = f"/api/admin/minishop-corp/contracts/{missing_contract}{suffix}"
             await get(path, 910001, 403)
             await get(path, 910002, 404)
@@ -169,6 +174,7 @@ async def main() -> None:
         print("PASS: corporate migration applied and contract collection routes installed")
         print("PASS: invitation preview authenticates and persists the Q-01 attempt limit")
         print("PASS: membership and operation routes authenticate and preserve scoped responses")
+        print("PASS: member and avatar routes preserve native authentication and contract scope")
         print("PASS: shared six-hour sweep started and synchronization routes enforce scope")
 
 

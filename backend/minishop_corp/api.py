@@ -4,6 +4,7 @@ from aiohttp import web
 
 from .api_contracts import setup_contract_routes
 from .api_invitations import setup_invitation_routes
+from .api_members import setup_member_routes
 from .api_memberships import setup_membership_routes
 from .api_synchronization import setup_synchronization_routes
 from .integration.auth import require_administrator, require_customer
@@ -32,3 +33,4 @@ def setup_routes(app: web.Application) -> None:
     setup_invitation_routes(app)
     setup_membership_routes(app)
     setup_synchronization_routes(app)
+    setup_member_routes(app)

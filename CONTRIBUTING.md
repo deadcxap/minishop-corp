@@ -52,11 +52,11 @@ Node 24 запускается из контейнера, закреплённо
 зависимостей host ограничены requirements закреплённого Minishop.
 
 `integration-check.sh` проверяет адаптер, хранилище, гонки и API/права на настоящем
-Minishop и PostgreSQL с HTTP-двойником панели. Устройство проверок и границы
+Minishop и PostgreSQL с HTTP-двойниками панели и Telegram для аватаров. Устройство проверок и границы
 совместимости описаны в [документе адаптера](docs/minishop-compatibility.md),
 [схеме хранения](docs/storage.md), [API контрактов](docs/contracts-api.md),
 [жизненном цикле членства](docs/membership-api.md) и
-[общей сверке](docs/reconciliation.md).
+[общей сверке](docs/reconciliation.md) и [данных участников](docs/members-api.md).
 
 Для проверки настоящего Minishop:
 
