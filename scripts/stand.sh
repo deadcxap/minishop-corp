@@ -8,7 +8,7 @@ case "$action" in
   up)
     expected="$(python3 -c 'import json; print(json.load(open("dev/minishop.json"))["revision"])')"
     [[ "$(git -C "$MINISHOP_SOURCE" rev-parse HEAD)" == "$expected" ]]
-    [[ -z "$(git -C "$MINISHOP_SOURCE" status --porcelain)" ]]
+    [[ -z "$(GIT_OPTIONAL_LOCKS=0 git -C "$MINISHOP_SOURCE" status --porcelain)" ]]
     bash scripts/node.sh npm run build
     .venv/bin/python scripts/build-dev-package.py
     mkdir -p .local/runtime/data .local/runtime/tmp .local/build-context

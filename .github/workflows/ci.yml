@@ -10,6 +10,7 @@ jobs:
     timeout-minutes: 25
     env:
       MINISHOP_SOURCE: ${{ github.workspace }}/.local/minishop
+      KIRO_WHEEL_SOURCE: ${{ github.workspace }}/.local/kiro-wheel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,12 +22,18 @@ jobs:
           enable-cache: false
       - name: Fetch pinned Minishop inside the workspace
         run: bash scripts/fetch-minishop.sh
+      - name: Fetch pinned example plugin inside the workspace
+        run: bash scripts/fetch-kiro-wheel.sh
       - name: Install locked development dependencies
         run: bash scripts/setup.sh
       - name: Lint, typecheck, test and build
         run: bash scripts/check.sh
       - name: Entitlement contracts against native Minishop and PostgreSQL
         run: bash scripts/integration-check.sh
+      - name: Validate package lifecycle with a disposable CI publisher key
+        run: |
+          bash scripts/package.sh init-key
+          bash scripts/package-check.sh
       - name: Start isolated host and validate installed plugin
         run: |
           bash scripts/stand.sh up
