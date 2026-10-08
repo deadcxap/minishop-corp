@@ -60,6 +60,7 @@ class ContractSummary(BaseModel):
 
 
 class ContractDetails(ContractSummary):
+    member_count: int
     tariff_key: str
     external_squad_uuid: UUID
     manager_user_id: int

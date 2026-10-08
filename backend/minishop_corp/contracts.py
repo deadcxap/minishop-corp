@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .contracts_types import (
@@ -33,9 +33,10 @@ def summary_of(row: Contract) -> ContractSummary:
     )
 
 
-def details_of(row: Contract) -> ContractDetails:
+def details_of(row: Contract, member_count: int) -> ContractDetails:
     return ContractDetails(
         **summary_of(row).model_dump(),
+        member_count=member_count,
         tariff_key=row.tariff_key,
         external_squad_uuid=row.external_squad_uuid,
         manager_user_id=row.manager_user_id,
@@ -59,13 +60,13 @@ class Contracts:
         if existing is not None:
             if existing.version != 1 or terms_of(existing) != terms:
                 raise ContractError("minishop_corp_request_conflict", 409)
-            return details_of(existing), False
+            return await self._details(session, existing), False
         await self.host.validate_references(session, terms)
         row = Contract(id=draft.id, **terms.model_dump())
         session.add(row)
         await session.flush()
         await self._record(session, row, actor, "contract_created")
-        return details_of(row), True
+        return details_of(row, 0), True
 
     async def update(
         self, session: AsyncSession, actor: int, contract_id: UUID, draft: UpdateContract
@@ -77,7 +78,7 @@ class Contracts:
             raise ContractError("minishop_corp_version_conflict", 409)
         terms = ContractTerms.model_validate(draft.model_dump(exclude={"expected_version"}))
         if terms == terms_of(row):
-            return details_of(row)
+            return await self._details(session, row)
         await self.host.validate_references(session, terms)
         row.name = terms.name
         row.tariff_key = terms.tariff_key
@@ -87,19 +88,43 @@ class Contracts:
         row.version += 1
         row.updated_at = datetime.now(UTC)
         await self._record(session, row, actor, "contract_updated")
-        return details_of(row)
+        return await self._details(session, row)
 
     async def admin_get(
         self, session: AsyncSession, actor: int, contract_id: UUID
     ) -> ContractDetails:
         await self.host.require_admin(session, actor)
-        return details_of(await self._get(session, contract_id))
+        return await self._details(session, await self._get(session, contract_id))
 
     async def admin_list(
         self, session: AsyncSession, actor: int, page: ContractPage
     ) -> list[ContractDetails]:
         await self.host.require_admin(session, actor)
-        return [details_of(row) for row in await self._list(session, page)]
+        rows = await self._list(session, page)
+        counts = dict(
+            (
+                await session.execute(
+                    select(Membership.contract_id, func.count())
+                    .where(
+                        Membership.contract_id.in_([row.id for row in rows]),
+                        Membership.current_user_id.is_not(None),
+                    )
+                    .group_by(Membership.contract_id)
+                )
+            )
+            .tuples()
+            .all()
+        )
+        return [details_of(row, counts.get(row.id, 0)) for row in rows]
+
+    @staticmethod
+    async def _details(session: AsyncSession, row: Contract) -> ContractDetails:
+        count = await session.scalar(
+            select(func.count())
+            .select_from(Membership)
+            .where(Membership.contract_id == row.id, Membership.current_user_id.is_not(None))
+        )
+        return details_of(row, count or 0)
 
     async def managed_list(
         self, session: AsyncSession, actor: int, page: ContractPage
