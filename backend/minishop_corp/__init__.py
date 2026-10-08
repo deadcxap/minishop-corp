@@ -3,10 +3,12 @@
 from pathlib import Path
 
 from aiohttp import web
+from bot.plugins.extensions import ExtensionContributions
 from bot.plugins.spec import WEB_SCOPE_WEBAPP, Plugin, PluginContext, WorkerTaskSpec
 
 from .api import setup_routes
 from .integration.migrations import Migration, migrations
+from .integration.views import view_policy
 from .integration.worker import run_operations, run_reconciliation_task
 
 __version__ = "0.1.0"
@@ -20,6 +22,9 @@ class CorporatePlugin(Plugin):
 
     def migrations(self) -> list[Migration]:
         return migrations()
+
+    def extensions(self, ctx: PluginContext) -> ExtensionContributions:
+        return ExtensionContributions(view_policy=view_policy)
 
     def setup_web(self, ctx: PluginContext, app: web.Application, *, scope: str) -> None:
         if scope == WEB_SCOPE_WEBAPP:

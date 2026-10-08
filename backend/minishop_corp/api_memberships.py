@@ -15,11 +15,17 @@ from .memberships import Memberships
 @boundary
 async def current(request: web.Request) -> web.Response:
     async with request_actor(request) as actor:
-        result = await Memberships(ContractHost.from_request(request)).current(
-            actor.session, actor.user_id
+        service = Memberships(ContractHost.from_request(request))
+        result = await service.current(actor.session, actor.user_id)
+        departure = (
+            await service.last_departure(actor.session, actor.user_id) if result is None else None
         )
         return response(
-            {"ok": True, "membership": result.model_dump(mode="json") if result else None}
+            {
+                "ok": True,
+                "membership": result.model_dump(mode="json") if result else None,
+                "last_departure": departure.model_dump(mode="json") if departure else None,
+            }
         )
 
 

@@ -24,6 +24,7 @@ from .membership_types import (
     DepartMembership,
     MembershipInfo,
     OperationInfo,
+    operation_info,
 )
 from .storage.invitations import reserve_invitation
 from .storage.operations import (
@@ -56,15 +57,35 @@ class Memberships:
             .limit(1)
         )
         summary = summary_of(contract)
+        try:
+            tariff = self.host.describe_tariff(contract.tariff_key)
+        except AccessError:
+            # A removed tariff must not prevent departure from the group.
+            tariff = None
         return MembershipInfo(
             id=row.id,
             state=row.state,
             contract=summary,
+            tariff=tariff,
             joined_at=row.joined_at,
             can_leave=row.state == "active",
             expiry_notice="wa_minishop_corp_expired_notice" if summary.expired else None,
-            operation=OperationInfo.model_validate(operation) if operation is not None else None,
+            operation=operation_info(operation) if operation is not None else None,
         )
+
+    async def last_departure(self, session: AsyncSession, actor: int) -> OperationInfo | None:
+        await self.host.require_account(session, actor)
+        row = await session.scalar(
+            select(Operation)
+            .where(
+                Operation.user_id == actor,
+                Operation.kind.in_(("leave", "exclude")),
+                Operation.state == "succeeded",
+            )
+            .order_by(Operation.created_at.desc(), Operation.id.desc())
+            .limit(1)
+        )
+        return operation_info(row) if row is not None else None
 
     async def confirm(
         self,
@@ -91,7 +112,7 @@ class Memberships:
                 or target.accepted_version != draft.offer.contract_version
             ):
                 raise ContractError("minishop_corp_request_conflict", 409)
-            return ConfirmationResult(200, operation=OperationInfo.model_validate(existing))
+            return ConfirmationResult(200, operation=operation_info(existing))
         if await session.scalar(select(Membership.id).where(Membership.current_user_id == actor)):
             raise ContractError("minishop_corp_already_member", 409)
         checked = await InvitationLookup(self.host).inspect(
@@ -151,7 +172,7 @@ class Memberships:
         )
         self._audit(session, operation, "membership_join_requested")
         await session.flush()
-        return ConfirmationResult(202, operation=OperationInfo.model_validate(operation))
+        return ConfirmationResult(202, operation=operation_info(operation))
 
     async def depart(
         self,
@@ -177,7 +198,7 @@ class Memberships:
         if previous is not None:
             if previous.membership_id != member.id or previous.kind != kind:
                 raise ContractError("minishop_corp_request_conflict", 409)
-            return OperationInfo.model_validate(previous)
+            return operation_info(previous)
         if member.current_user_id != member.user_id:
             raise ContractError("minishop_corp_membership_missing", 404)
         if member.state != "active":
@@ -227,7 +248,7 @@ class Memberships:
         )
         self._audit(session, operation, "membership_departure_requested")
         await session.flush()
-        return OperationInfo.model_validate(operation)
+        return operation_info(operation)
 
     async def operation(
         self,
@@ -247,7 +268,7 @@ class Memberships:
         if member is None:
             raise ContractError("minishop_corp_operation_missing", 404)
         await self._authorize(session, actor, member, contract, scope, contract_id)
-        return OperationInfo.model_validate(row)
+        return operation_info(row)
 
     async def _authorize(
         self,
