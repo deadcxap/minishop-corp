@@ -20,6 +20,14 @@ class Panel:
         self.trial_applied = False
         self.external_squads: dict[str, dict[str, object]] = {}
         self.fail_squads = False
+        self.devices: dict[str, list[dict[str, object]]] = {}
+        self.fail_reads = False
+        self.fail_devices = False
+        self.active_reads = 0
+        self.max_active_reads = 0
+        self.expected_reads = 1
+        self.reads_started: asyncio.Event | None = None
+        self.continue_reads: asyncio.Event | None = None
         self.update_started: asyncio.Event | None = None
         self.continue_update: asyncio.Event | None = None
         self.app = web.Application()
@@ -29,6 +37,22 @@ class Panel:
         path = request.match_info["path"]
         method = request.method
         self.requests.append((method, path))
+        if method == "GET" and path.startswith(("users/", "hwid/devices/")):
+            self.active_reads += 1
+            self.max_active_reads = max(self.active_reads, self.max_active_reads)
+            try:
+                if self.reads_started is not None and self.active_reads >= self.expected_reads:
+                    self.reads_started.set()
+                if self.continue_reads is not None:
+                    await self.continue_reads.wait()
+            finally:
+                self.active_reads -= 1
+        if method == "GET" and path.startswith("hwid/devices/"):
+            if self.fail_devices:
+                return web.json_response({"message": "Unavailable"}, status=503)
+            return web.json_response(
+                {"response": {"devices": self.devices.get(path.removeprefix("hwid/devices/"), [])}}
+            )
         if method == "GET" and path == "system/metadata":
             return web.json_response({"response": {"version": "2.8.1"}})
         if method == "GET" and path.startswith("external-squads/"):
@@ -52,6 +76,8 @@ class Panel:
                 self.users[identifier]["activeInternalSquads"] = list(body["activeInternalSquads"])
             return web.json_response({"response": {"affectedRows": len(body["uuids"])}})
         if method == "GET" and path.startswith("users/"):
+            if self.fail_reads:
+                return web.json_response({"message": "Unavailable"}, status=503)
             identifier = path.removeprefix("users/")
             if "/" in identifier:
                 kind, value = identifier.split("/", 1)
