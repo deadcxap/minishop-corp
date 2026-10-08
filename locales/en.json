@@ -4,5 +4,12 @@
   "wa_minishop_corp_loading": "Loading…",
   "wa_minishop_corp_error": "Unable to load this section. Please try again later.",
   "admin_minishop_corp_title": "Corporate contracts",
-  "admin_minishop_corp_pending": "Corporate contract management will be available here soon."
+  "admin_minishop_corp_pending": "Corporate contract management will be available here soon.",
+  "minishop_corp_user_missing": "Account not found.",
+  "minishop_corp_tariff_unavailable": "The contract plan is unavailable. Please contact support.",
+  "minishop_corp_panel_unconfirmed": "Access changes have not been confirmed yet. The operation needs to be retried.",
+  "minishop_corp_trial_unavailable": "A new trial cannot be issued with the current store settings. Please contact support.",
+  "minishop_corp_renewal_policy_required": "A subscription with auto-renewal cannot be transferred yet. Please contact support.",
+  "minishop_corp_flexible_limits_unsupported": "This subscription has separately purchased traffic quotas. An administrator needs to review the transfer.",
+  "minishop_corp_subscription_missing": "Subscription not found. Please contact support."
 }

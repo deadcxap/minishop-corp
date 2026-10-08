@@ -13,6 +13,9 @@ class Panel:
         self.fail_updates = False
         self.echo_without_saving = False
         self.lose_update_response = False
+        self.lose_create_response = False
+        self.fail_after_trial_activation = False
+        self.trial_applied = False
         self.app = web.Application()
         self.app.router.add_route("*", "/api/{path:.*}", self.handle)
 
@@ -21,21 +24,31 @@ class Panel:
         method = request.method
         self.requests.append((method, path))
         if method == "GET" and path == "system/metadata":
-            return web.json_response({"response": {"version": "2.8.0"}})
+            return web.json_response({"response": {"version": "2.8.1"}})
         if method == "GET" and path == "users":
             return web.json_response(
                 {"response": {"users": list(self.users.values()), "total": len(self.users)}}
             )
+        if method == "POST" and path == "users/bulk/update-squads":
+            body = await request.json()
+            assert set(body) == {"uuids", "activeInternalSquads"}
+            for identifier in body["uuids"]:
+                self.users[identifier]["activeInternalSquads"] = list(body["activeInternalSquads"])
+            return web.json_response({"response": {"affectedRows": len(body["uuids"])}})
         if method == "GET" and path.startswith("users/"):
             identifier = path.removeprefix("users/")
             if "/" in identifier:
                 kind, value = identifier.split("/", 1)
-                field = {"by-username": "username", "by-telegram-id": "telegramId"}.get(kind)
+                field = {
+                    "by-username": "username",
+                    "by-telegram-id": "telegramId",
+                    "by-email": "email",
+                }.get(kind)
                 if field:
                     matches = [u for u in self.users.values() if str(u.get(field)) == value]
-                    if matches:
+                    if matches or kind != "by-username":
                         return web.json_response(
-                            {"response": matches if kind == "by-telegram-id" else matches[0]}
+                            {"response": matches[0] if kind == "by-username" else matches}
                         )
             elif identifier in self.users:
                 return web.json_response({"response": self.users[identifier]})
@@ -44,6 +57,8 @@ class Panel:
             body = await request.json()
             assert isinstance(body, dict)
             if method == "POST":
+                if any(user["username"] == body["username"] for user in self.users.values()):
+                    return web.json_response({"errorCode": "A019"}, status=409)
                 identifier = str(uuid4())
                 short = uuid4().hex[:12]
                 user: dict[str, object] = {
@@ -58,13 +73,19 @@ class Panel:
                     **body,
                 }
                 self.users[identifier] = user
+                if self.lose_create_response:
+                    return web.json_response(
+                        {"message": "Lost creation acknowledgement"}, status=503
+                    )
                 return web.json_response({"response": user}, status=201)
-            if self.fail_updates:
+            if self.fail_updates or (self.fail_after_trial_activation and self.trial_applied):
                 return web.json_response({"message": "Unavailable"}, status=503)
             identifier = str(body["uuid"])
             user = {**self.users[identifier], **body}
             if not self.echo_without_saving:
                 self.users[identifier] = deepcopy(user)
+                if body.get("tag") == "TRIAL":
+                    self.trial_applied = True
             if self.lose_update_response:
                 return web.json_response({"message": "Lost acknowledgement"}, status=503)
             return web.json_response({"response": user})

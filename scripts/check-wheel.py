@@ -19,6 +19,7 @@ with tempfile.TemporaryDirectory(dir=root / ".local", prefix="wheel-check-") as 
             "-c",
             "import sys, pathlib; sys.path.insert(0, sys.argv[1]); "
             "import minishop_corp; "
+            "from minishop_corp.integration.access import AccessAdapter; "
             "assert pathlib.Path(minishop_corp.__file__).is_relative_to(sys.argv[1]); "
             "assert minishop_corp.__version__ == sys.argv[2]; "
             "assert all((minishop_corp.plugin.locales_dir() / (lang + '.json')).is_file() "

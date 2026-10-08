@@ -33,6 +33,7 @@ def make_settings(**overrides: object) -> Settings:
         TELEMETRY_ENABLED=False,
         PLUGINS_ENABLED=False,
         REDIS_URL=None,
+        WEBAPP_THEMES_DIR=".local/themes",
         **overrides,
     )
 

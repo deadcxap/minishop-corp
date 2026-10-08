@@ -4,5 +4,12 @@
   "wa_minishop_corp_loading": "Загрузка…",
   "wa_minishop_corp_error": "Не удалось загрузить раздел. Попробуйте позже.",
   "admin_minishop_corp_title": "Корпоративные контракты",
-  "admin_minishop_corp_pending": "Управление корпоративными контрактами скоро появится в этом разделе."
+  "admin_minishop_corp_pending": "Управление корпоративными контрактами скоро появится в этом разделе.",
+  "minishop_corp_user_missing": "Учётная запись не найдена.",
+  "minishop_corp_tariff_unavailable": "Тариф контракта недоступен. Обратитесь в поддержку.",
+  "minishop_corp_panel_unconfirmed": "Изменение доступа ещё не подтверждено. Операцию необходимо повторить.",
+  "minishop_corp_trial_unavailable": "При текущих настройках магазина новый триал недоступен. Обратитесь в поддержку.",
+  "minishop_corp_renewal_policy_required": "Перевод подписки с автопродлением пока недоступен. Обратитесь в поддержку.",
+  "minishop_corp_flexible_limits_unsupported": "У подписки есть отдельно оплаченные квоты трафика. Для перехода нужна обработка администратором.",
+  "minishop_corp_subscription_missing": "Подписка не найдена. Обратитесь в поддержку."
 }

@@ -64,6 +64,16 @@ services:
       - ${MINISHOP_SOURCE:?}:/minishop:ro
     environment:
       CORP_INTEGRATION: "1"
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: corp_dev
+      POSTGRES_PASSWORD: local-development-only
+      TELEGRAM_ENABLED: "false"
+      TELEMETRY_ENABLED: "false"
+      ADVERTISING_ENABLED: "false"
+      PLUGINS_ENABLED: "false"
+      PANEL_API_URL: ""
+      PANEL_WRITE_MODE: dry-run
+      WEBAPP_THEMES_DIR: /workspace/.local/themes
       PYTHONPATH: /workspace/backend:/minishop/backend
       PYTHONDONTWRITEBYTECODE: "1"
       MINISHOP_PLUGIN_STORE: /workspace/.local/plugin-store
