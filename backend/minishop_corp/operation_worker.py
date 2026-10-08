@@ -23,6 +23,7 @@ from .integration.access_types import AccessError, DisabledAccess
 from .integration.contracts import ContractHost
 from .storage.invitations import settle_reservation
 from .storage.operations import DisabledTarget, OperationDraft, PeriodTarget, TrialTarget
+from .storage.reconciliation import mark_reconciled, period_target
 from .storage.schema import AuditEvent, Invitation, Membership, Operation, Reservation
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,13 @@ class OperationWorker:
         if (
             member.current_user_id != operation.user_id
             or member.generation != operation.membership_generation
-            or member.state != ("pending" if operation.kind == "join" else "leaving")
+            or member.state
+            != {
+                "join": "pending",
+                "reconcile": "active",
+                "leave": "leaving",
+                "exclude": "leaving",
+            }[operation.kind]
         ):
             # A newer generation owns access. Never compensate over its result.
             # Preserve any unresolved reservation for diagnosis, not speculative reuse.
@@ -120,7 +127,7 @@ class OperationWorker:
             return False
         draft = OperationDraft.model_validate(operation, from_attributes=True)
         target = draft.target
-        if isinstance(target, PeriodTarget):
+        if operation.kind == "join":
             reservation = await session.scalar(
                 select(Reservation)
                 .where(
@@ -133,16 +140,12 @@ class OperationWorker:
                 self._retry(operation, "minishop_corp_operation_unresolved")
                 await session.flush()
                 return False
+        if isinstance(target, PeriodTarget):
             # Confirmation enrolled the member in this contract. As for current
             # members, queued activation uses its latest committed terms. Keep
             # the originally accepted version for request idempotency.
             if operation.contract_version != contract.version:
-                target = PeriodTarget(
-                    tariff_key=contract.tariff_key,
-                    ends_at=contract.ends_at,
-                    external_squad_uuid=contract.external_squad_uuid,
-                    accepted_version=target.accepted_version,
-                )
+                target = period_target(contract, accepted_version=target.accepted_version)
                 operation.contract_version = contract.version
                 operation.target = target.model_dump(mode="json")
         elif isinstance(target, TrialTarget):
@@ -161,7 +164,8 @@ class OperationWorker:
         ) as effects:
             try:
                 if isinstance(target, PeriodTarget):
-                    await self.access.validate_join(effects, operation.user_id)
+                    if operation.kind == "join":
+                        await self.access.validate_join(effects, operation.user_id)
                     await self.access.assign_period(effects, operation.user_id, target.access())
                 elif isinstance(target, TrialTarget):
                     await self.access.grant_trial(effects, operation.user_id, target.access())
@@ -185,7 +189,7 @@ class OperationWorker:
         if operation.kind == "join":
             member.state = "active"
             member.joined_at = member.joined_at or instant
-            member.applied_version = operation.contract_version
+            mark_reconciled(member, operation.contract_version, instant)
             await session.flush()
             if member.invitation_id is None:
                 raise ContractError("minishop_corp_operation_stale", 409)
@@ -195,6 +199,8 @@ class OperationWorker:
                 invitation_id=member.invitation_id,
                 operation_id=operation.id,
             )
+        elif operation.kind == "reconcile":
+            mark_reconciled(member, operation.contract_version, instant)
         else:
             member.state = "excluded" if operation.kind == "exclude" else "left"
             member.current_user_id = None

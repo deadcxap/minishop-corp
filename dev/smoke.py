@@ -64,10 +64,12 @@ async def main() -> None:
                     text(
                         "SELECT count(*) FROM schema_migrations "
                         "WHERE id IN ('minishop-corp.0001_initial', "
-                        "'minishop-corp.0002_invitation_replacements')"
+                        "'minishop-corp.0002_invitation_replacements', "
+                        "'minishop-corp.0003_membership_reconciliation', "
+                        "'minishop-corp.0004_shared_reconciliation_sweep')"
                     )
                 )
-                == 2
+                == 4
             )
 
         async def get(path: str, user_id: int, expected: int = 200) -> dict[str, object]:
@@ -95,6 +97,31 @@ async def main() -> None:
             910001,
             404,
         )
+        missing_contract = "00000000-0000-4000-8000-000000000000"
+        for suffix in ("/synchronization", "/synchronization/operations"):
+            path = f"/api/admin/minishop-corp/contracts/{missing_contract}{suffix}"
+            await get(path, 910001, 403)
+            await get(path, 910002, 404)
+            await get(
+                f"/api/plugins/minishop-corp/managed-contracts/{missing_contract}{suffix}",
+                910001,
+                404,
+            )
+        deadline = time.monotonic() + 15
+        while True:
+            async with factory() as session:
+                started = await session.scalar(
+                    text(
+                        "SELECT started_at IS NOT NULL "
+                        "AND next_run_at - started_at = interval '6 hours' "
+                        "FROM ext_minishop_corp_reconciliation_sweep WHERE id = 1"
+                    )
+                )
+            if started:
+                break
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Global reconciliation worker did not start its first sweep")
+            await asyncio.sleep(1)
 
         preview_path = base + "/api/plugins/minishop-corp/invitations/preview"
         async with client.post(preview_path, json={"code": ""}) as response:
@@ -142,6 +169,7 @@ async def main() -> None:
         print("PASS: corporate migration applied and contract collection routes installed")
         print("PASS: invitation preview authenticates and persists the Q-01 attempt limit")
         print("PASS: membership and operation routes authenticate and preserve scoped responses")
+        print("PASS: shared six-hour sweep started and synchronization routes enforce scope")
 
 
 if __name__ == "__main__":

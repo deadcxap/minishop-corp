@@ -30,10 +30,15 @@ def test_installed_entry_point_and_worker_hooks(context: PluginContext) -> None:
     loaded = next(iter(points)).load()
     assert isinstance(loaded, Plugin)
     assert loaded is plugin
-    assert [task.name for task in plugin.worker_tasks(context)] == ["minishop-corp.operations"]
+    assert [task.name for task in plugin.worker_tasks(context)] == [
+        "minishop-corp.operations",
+        "minishop-corp.reconciliation",
+    ]
     assert [item.id for item in plugin.migrations()] == [
         "minishop-corp.0001_initial",
         "minishop-corp.0002_invitation_replacements",
+        "minishop-corp.0003_membership_reconciliation",
+        "minishop-corp.0004_shared_reconciliation_sweep",
     ]
 
 
@@ -61,6 +66,10 @@ def test_routes_only_in_webapp(context: PluginContext) -> None:
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}",
         "/api/plugins/minishop-corp/contracts/{contract_id}",
         "/api/plugins/minishop-corp/invitations/preview",
+        "/api/admin/minishop-corp/contracts/{contract_id}/synchronization",
+        "/api/admin/minishop-corp/contracts/{contract_id}/synchronization/operations",
+        "/api/plugins/minishop-corp/managed-contracts/{contract_id}/synchronization",
+        "/api/plugins/minishop-corp/managed-contracts/{contract_id}/synchronization/operations",
         "/api/plugins/minishop-corp/membership",
         "/api/plugins/minishop-corp/membership/confirm",
         "/api/plugins/minishop-corp/memberships/{membership_id}/leave",

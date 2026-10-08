@@ -1,7 +1,8 @@
 """Authorized membership intents. HTTP never performs a subscription write.
 
 Native user locks precede contract/member locks. An unresolved intent keeps its
-membership and reservation; another access-changing intent must await resolution.
+membership and reservation. Departure may supersede a reconciliation operation;
+other access-changing intents must await resolution.
 """
 
 from datetime import UTC, datetime
@@ -179,12 +180,29 @@ class Memberships:
             return OperationInfo.model_validate(previous)
         if member.current_user_id != member.user_id:
             raise ContractError("minishop_corp_membership_missing", 404)
-        if member.state != "active" or await session.scalar(
-            select(Operation.id).where(
-                Operation.user_id == member.user_id, Operation.state.in_(LIVE_STATES)
-            )
-        ):
+        if member.state != "active":
             raise ContractError("minishop_corp_operation_busy", 409)
+        pending = await session.scalar(
+            select(Operation)
+            .where(
+                Operation.user_id == member.user_id,
+                Operation.state.in_(LIVE_STATES),
+            )
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        )
+        if pending is not None:
+            if pending.kind != "reconcile" or pending.membership_id != member.id:
+                raise ContractError("minishop_corp_operation_busy", 409)
+            # Departure supersedes a repair, including an uncertain retry. User
+            # and contract locks fence its old worker before accepting departure.
+            pending.state = "cancelled"
+            pending.lease_token = None
+            pending.lease_until = None
+            pending.error_code = "minishop_corp_operation_stale"
+            pending.updated_at = datetime.now(UTC)
+            self._audit(session, pending, "reconciliation_superseded")
+            await session.flush()
         window = self.access.prepare_departure(starts_at=now or datetime.now(UTC))
         target: TrialTarget | DisabledTarget
         if isinstance(window, TrialAccess):

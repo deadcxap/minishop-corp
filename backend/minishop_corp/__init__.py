@@ -7,7 +7,7 @@ from bot.plugins.spec import WEB_SCOPE_WEBAPP, Plugin, PluginContext, WorkerTask
 
 from .api import setup_routes
 from .integration.migrations import Migration, migrations
-from .integration.worker import run_operations
+from .integration.worker import run_operations, run_reconciliation_task
 
 __version__ = "0.1.0"
 
@@ -32,7 +32,10 @@ class CorporatePlugin(Plugin):
         return packaged if packaged.is_dir() else Path(__file__).parents[2] / "locales"
 
     def worker_tasks(self, ctx: PluginContext) -> list[WorkerTaskSpec]:
-        return [WorkerTaskSpec(name="minishop-corp.operations", factory=run_operations)]
+        return [
+            WorkerTaskSpec(name="minishop-corp.operations", factory=run_operations),
+            WorkerTaskSpec(name="minishop-corp.reconciliation", factory=run_reconciliation_task),
+        ]
 
 
 plugin = CorporatePlugin()

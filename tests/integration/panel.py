@@ -1,5 +1,6 @@
 """Only the external transport is substituted; host services and DAL are real."""
 
+import asyncio
 from copy import deepcopy
 from uuid import uuid4
 
@@ -19,6 +20,8 @@ class Panel:
         self.trial_applied = False
         self.external_squads: dict[str, dict[str, object]] = {}
         self.fail_squads = False
+        self.update_started: asyncio.Event | None = None
+        self.continue_update: asyncio.Event | None = None
         self.app = web.Application()
         self.app.router.add_route("*", "/api/{path:.*}", self.handle)
 
@@ -98,6 +101,9 @@ class Panel:
             ):
                 return web.json_response({"message": "Unavailable"}, status=503)
             identifier = str(body["uuid"])
+            if self.update_started is not None and self.continue_update is not None:
+                self.update_started.set()
+                await self.continue_update.wait()
             user = {**self.users[identifier], **body}
             if not self.echo_without_saving:
                 self.users[identifier] = deepcopy(user)

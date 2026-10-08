@@ -75,6 +75,9 @@ class Membership(Base):
     state: Mapped[MembershipState] = mapped_column(String(16), default="pending")
     generation: Mapped[int] = mapped_column(Integer, default=1)
     applied_version: Mapped[int | None] = mapped_column(Integer)
+    scheduled_version: Mapped[int | None] = mapped_column(Integer)
+    scheduled_run_id: Mapped[UUID | None]
+    last_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -130,3 +133,17 @@ class AuditEvent(Base):
     operation_id: Mapped[UUID | None]
     details: Mapped[dict[str, JsonValue]] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReconciliationSweep(Base):
+    __tablename__ = PREFIX + "reconciliation_sweep"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[UUID]
+    next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_running: Mapped[bool]
+    after_member_id: Mapped[UUID | None]
+    lease_token: Mapped[UUID | None]
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

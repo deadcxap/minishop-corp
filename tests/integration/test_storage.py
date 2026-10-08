@@ -48,14 +48,14 @@ async def test_native_migration_chain_rolled_back_then_replayed(engine: AsyncEng
             await connection.scalar(
                 text("SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'")
             )
-            == 2
+            == 4
         )
         names = (
             await connection.scalars(
                 text("SELECT tablename FROM pg_tables WHERE tablename LIKE 'ext_minishop_corp_%'")
             )
         ).all()
-        assert len(names) == 7
+        assert len(names) == 8
 
 
 async def test_constraints_and_historical_departure(host: Host) -> None:
