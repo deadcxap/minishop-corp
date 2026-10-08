@@ -40,6 +40,10 @@ bash scripts/check.sh
 bash scripts/integration-check.sh
 ```
 
+S10 также использует закреплённый `../kiro-wheel` только для чтения; альтернативный
+путь задаётся `KIRO_WHEEL_SOURCE`. Для checkout внутри проекта доступны
+`scripts/fetch-minishop.sh` и `scripts/fetch-kiro-wheel.sh`.
+
 `setup.sh` проверяет чистоту и ревизию Minishop из `dev/minishop.json`, устанавливает
 зависимости ядра и `requirements-dev.lock` в `.venv`, плагин — в editable-режиме.
 Node 24 запускается из контейнера, закреплённого по digest; локальный Node не нужен.
@@ -66,12 +70,19 @@ Minishop и PostgreSQL с HTTP-двойниками панели и Telegram д�
 bash scripts/stand.sh up
 bash scripts/stand.sh check
 bash scripts/browser-check.sh
+bash scripts/core-ui-check.sh
 bash scripts/stand.sh down
 ```
 
 Изоляция стенда, тестовый подписанный пакет, preview, порты и CI описаны в
 [инструкции окружения](docs/development.md). Browser-проверки используют Chromium
 в контейнере и подписанные ESM-файлы из работающего Minishop.
+
+Для поставки используйте `bash scripts/package.sh init-key` один раз, затем
+`bash scripts/package.sh build` и `bash scripts/package-check.sh`. Последняя команда
+проверяет чистую установку, обновление и сохранность данных на отдельном Compose-стенде.
+Формат артефактов и границы выпуска описаны в [инструкции установки](docs/installation.md),
+матрица CORP-01–CORP-20 — в [отчёте приёмки](docs/acceptance.md).
 
 Если обязательную проверку нельзя запустить, укажите причину и оставшуюся
 непроверенную границу; этап с такой обязательной проверкой не завершён.
