@@ -1,4 +1,4 @@
-"""Invitation management only. Customer code lookup requires the S04 throttle boundary."""
+"""Scoped invitation management and authenticated, throttled offer previews."""
 
 from uuid import UUID
 
@@ -9,8 +9,37 @@ from .contracts_types import ContractPage
 from .integration.auth import require_administrator
 from .integration.contracts import ContractHost, request_actor
 from .integration.invitation_links import invitation_link
+from .invitation_lookup import InvitationLookup
 from .invitations import Invitations
-from .invitations_types import CreateInvitation, IssuedInvitation, RotateInvitation
+from .invitations_types import (
+    CreateInvitation,
+    IssuedInvitation,
+    PreviewInvitation,
+    RotateInvitation,
+)
+
+
+@boundary
+async def customer_preview(request: web.Request) -> web.Response:
+    async with request_actor(request) as actor:
+        draft = await body(request, PreviewInvitation)
+        result = await InvitationLookup(ContractHost.from_request(request)).inspect(
+            actor.session, actor.user_id, draft.code
+        )
+        # Expected failure responses must retain the persistent attempt budget.
+        await actor.session.commit()
+        payload: dict[str, object] = {"ok": result.status == 200, "retry_after": result.retry_after}
+        if result.offer is not None and result.tariff is not None:
+            payload.update(
+                offer=result.offer.model_dump(mode="json"),
+                tariff=result.tariff.model_dump(mode="json"),
+            )
+        else:
+            payload["error"] = result.error
+        reply = response(payload, status=result.status)
+        if result.status == 429 and result.retry_after is not None:
+            reply.headers["Retry-After"] = str(result.retry_after)
+        return reply
 
 
 def issued_response(request: web.Request, issued: IssuedInvitation) -> web.Response:
@@ -101,6 +130,7 @@ async def manager_collection(request: web.Request) -> web.Response:
 
 
 def setup_invitation_routes(app: web.Application) -> None:
+    app.router.add_post("/api/plugins/minishop-corp/invitations/preview", customer_preview)
     admin = "/api/admin/minishop-corp/contracts/{contract_id}/invitations"
     manager = "/api/plugins/minishop-corp/managed-contracts/{contract_id}/invitations"
     app.router.add_get(admin, admin_collection)

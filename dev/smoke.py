@@ -89,6 +89,19 @@ async def main() -> None:
         assert "contracts" in await get("/api/admin/minishop-corp/contracts", 910002)
         assert "contracts" in await get("/api/plugins/minishop-corp/managed-contracts", 910001)
 
+        preview_path = base + "/api/plugins/minishop-corp/invitations/preview"
+        async with client.post(preview_path, json={"code": ""}) as response:
+            assert response.status == 401
+        headers = {"Authorization": f"Bearer {create_webapp_session_token(settings, 910001)}"}
+        async with client.post(preview_path, json={"code": ""}, headers=headers) as response:
+            # The stand keeps its DB across runs, including the real attempt budget.
+            assert response.status in {400, 429}, await response.text()
+            payload = await response.json()
+            assert payload["ok"] is False and payload["retry_after"] > 0
+        async with client.post(preview_path, json={"code": ""}, headers=headers) as response:
+            assert response.status == 429
+            assert int(response.headers["Retry-After"]) > 0
+
         customer = await get("/api/extensions/runtime", 910001)
         admin = await get("/api/admin/plugins/runtime", 910002)
         # The host must advertise the actual signed package on both UI surfaces.
@@ -120,6 +133,7 @@ async def main() -> None:
         print("PASS: customer/admin authorization, banned/missing users, runtime and signed assets")
         print("PASS: backend and worker are active in the same package generation")
         print("PASS: corporate migration applied and contract collection routes installed")
+        print("PASS: invitation preview authenticates and persists the Q-01 attempt limit")
 
 
 if __name__ == "__main__":

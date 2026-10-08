@@ -1,8 +1,8 @@
-"""Corporate policy over Minishop's persistent throttle DAL, with no chosen defaults.
+"""Corporate attempt intervals over Minishop's persistent throttle DAL.
 
 Call admit before either preview or confirmation, and record_failure only for an
 unavailable code. The caller commits expected error outcomes too; an HTTP exception
-must not roll back the failure budget. Q-01 selects the production policy later.
+must not roll back the failure budget. Q-01 counts errors until three idle hours.
 """
 
 from dataclasses import dataclass
@@ -23,21 +23,35 @@ FAILURE_SCOPE = "minishop-corp.code_errors"
 
 @dataclass(frozen=True)
 class AttemptPolicy:
-    attempts_per_minute: int
-    failures_per_step: int
-    delays_seconds: tuple[int, ...]
+    interval_seconds: int
+    failure_intervals_seconds: tuple[tuple[int, int], ...]
     reset_after_seconds: int
 
     def __post_init__(self) -> None:
-        if (
-            self.attempts_per_minute < 1
-            or self.failures_per_step < 1
-            or not self.delays_seconds
-            or any(delay < 1 for delay in self.delays_seconds)
-            or tuple(sorted(self.delays_seconds)) != self.delays_seconds
-            or self.reset_after_seconds <= self.delays_seconds[-1]
-        ):
+        threshold, interval = 0, self.interval_seconds
+        if interval < 1:
             raise ValueError("Invalid corporate code attempt policy")
+        for next_threshold, next_interval in self.failure_intervals_seconds:
+            if next_threshold <= threshold or next_interval < interval:
+                raise ValueError("Invalid corporate code attempt policy")
+            threshold, interval = next_threshold, next_interval
+        if self.reset_after_seconds <= interval:
+            raise ValueError("Invalid corporate code attempt policy")
+
+    def interval_for(self, failures: int) -> int:
+        interval = self.interval_seconds
+        for threshold, seconds in self.failure_intervals_seconds:
+            if failures < threshold:
+                break
+            interval = seconds
+        return interval
+
+
+CORPORATE_ATTEMPT_POLICY = AttemptPolicy(
+    interval_seconds=60,
+    failure_intervals_seconds=((5, 900), (9, 3600)),
+    reset_after_seconds=10800,
+)
 
 
 @dataclass(frozen=True)
@@ -55,7 +69,7 @@ class ThrottleState(BaseModel):
 
 
 class CodeAttempts:
-    def __init__(self, policy: AttemptPolicy) -> None:
+    def __init__(self, policy: AttemptPolicy = CORPORATE_ATTEMPT_POLICY) -> None:
         self.policy = policy
 
     @staticmethod
@@ -106,9 +120,11 @@ class CodeAttempts:
         now: datetime,
     ) -> AttemptDecision:
         retry_after = 0
+        states: dict[str, ThrottleState | None] = {}
         # Respect an existing ordinary promo lock, but never modify that scope.
         for scope in (security_dal.PROMO_CODE_APPLY_SCOPE, MINUTE_SCOPE, FAILURE_SCOPE):
             state = await self.state(session, scope, user_id)
+            states[scope] = state
             decision = await security_dal.check_throttle(
                 session,
                 scope=scope,
@@ -120,6 +136,19 @@ class CodeAttempts:
                 retry_after = max(
                     retry_after, max(1, ceil((state.locked_until - now).total_seconds()))
                 )
+        last_attempt = states[MINUTE_SCOPE]
+        failures = states[FAILURE_SCOPE]
+        if last_attempt is not None and last_attempt.last_attempt_at is not None:
+            interval = self.policy.interval_for(failures.failures if failures else 0)
+            deadline = last_attempt.last_attempt_at + timedelta(seconds=interval)
+            if failures is not None and failures.last_attempt_at is not None:
+                # The elevated rate expires after idle cooling, even if the last
+                # successful check was recent. The native base lock still applies.
+                deadline = min(
+                    deadline,
+                    failures.last_attempt_at + timedelta(seconds=self.policy.reset_after_seconds),
+                )
+            retry_after = max(retry_after, ceil((deadline - now).total_seconds()))
         return AttemptDecision(allowed=retry_after == 0, retry_after=retry_after or None)
 
     async def admit(
@@ -135,22 +164,18 @@ class CodeAttempts:
         blocked = await self._blocked(session, user_id, instant)
         if not blocked.allowed:
             return blocked
-        state = await self.state(session, MINUTE_SCOPE, user_id)
-        started = state.window_started_at if state else None
-        if started is None or started <= instant - timedelta(seconds=60):
-            started = instant
-        remaining = max(1, ceil((started + timedelta(seconds=60) - instant).total_seconds()))
         await security_dal.record_throttle_failure(
             session,
             scope=MINUTE_SCOPE,
             identifier=f"user:{user_id}",
-            max_failures=self.policy.attempts_per_minute,
-            window_seconds=60,
-            lock_seconds=remaining,
+            max_failures=1,
+            window_seconds=self.policy.interval_seconds,
+            lock_seconds=self.policy.interval_seconds,
             now=instant,
         )
-        # The Nth attempt is admitted; its counter prevents attempt N+1.
-        return AttemptDecision(allowed=True)
+        # Every admitted check starts an interval, including successful ones.
+        next_attempt = await self._blocked(session, user_id, instant)
+        return AttemptDecision(allowed=True, retry_after=next_attempt.retry_after)
 
     async def record_failure(
         self,
@@ -163,10 +188,6 @@ class CodeAttempts:
         await self._lock_account(session, user_id)
         state = await self._reset_idle(session, user_id, instant)
         count = state.failures if state else 0
-        threshold = (count // self.policy.failures_per_step + 1) * self.policy.failures_per_step
-        step = min(
-            (threshold // self.policy.failures_per_step) - 1, len(self.policy.delays_seconds) - 1
-        )
         # Native windows start at the first failure. Extend that window while errors
         # continue; only _reset_idle implements the required period without errors.
         elapsed = 0
@@ -176,9 +197,9 @@ class CodeAttempts:
             session,
             scope=FAILURE_SCOPE,
             identifier=f"user:{user_id}",
-            max_failures=threshold,
+            max_failures=1,
             window_seconds=elapsed + self.policy.reset_after_seconds + 1,
-            lock_seconds=self.policy.delays_seconds[step],
+            lock_seconds=self.policy.interval_for(count + 1),
             now=instant,
         )
         return await self._blocked(session, user_id, instant)

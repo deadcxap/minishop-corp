@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 from bot.services.account_roles import grant_role
-from minishop_corp.integration.code_attempts import FAILURE_SCOPE, AttemptPolicy, CodeAttempts
+from minishop_corp.integration.code_attempts import FAILURE_SCOPE, CodeAttempts
 from minishop_corp.integration.contracts import ContractHost
 from minishop_corp.invitation_lookup import InvitationLookup
 from minishop_corp.invitations import Invitations
@@ -31,10 +31,8 @@ async def code(host: Host) -> SecretStr:
     return issued.code
 
 
-def lookup(host: Host, limit: int = 5) -> InvitationLookup:
-    return InvitationLookup(
-        ContractHost(host.service), AttemptPolicy(limit, limit, (60, 300, 900, 3600), 86400)
-    )
+def lookup(host: Host) -> InvitationLookup:
+    return InvitationLookup(ContractHost(host.service))
 
 
 async def test_preview_and_confirmation_use_same_budget_without_consuming_code(host: Host) -> None:
@@ -52,12 +50,13 @@ async def test_preview_and_confirmation_use_same_budget_without_consuming_code(h
         contract_id=preview.offer.contract.id,
         contract_version=preview.offer.contract.version,
     )
-    for _ in range(4):
-        assert (
-            await service.inspect(host.session, USER_ID, secret, expected=expected, now=now)
-        ).status == 200
+    assert preview.retry_after == 60
     denied = await lookup(host).inspect(host.session, USER_ID, secret, expected=expected, now=now)
     assert denied.status == 429 and denied.retry_after == 60
+    confirmed = await service.inspect(
+        host.session, USER_ID, secret, expected=expected, now=now + timedelta(minutes=1)
+    )
+    assert confirmed.status == 200 and confirmed.retry_after == 60
     invitation = await host.session.get(Invitation, expected.invitation_id)
     assert invitation is not None and invitation.used_count == invitation.reserved_count == 0
     assert (
@@ -72,11 +71,11 @@ async def test_invalid_codes_commit_failure_budget_and_do_not_echo_secret(host: 
     now = datetime.now(UTC)
     service = lookup(host)
     secret = SecretStr("CORP-" + "0" * 32)
-    for _ in range(4):
+    for _ in range(5):
         result = await service.inspect(host.session, USER_ID, secret, now=now)
         assert result.status == 400 and result.error == "minishop_corp_invitation_unavailable"
-    result = await service.inspect(host.session, USER_ID, secret, now=now)
-    assert result.status == 429 and result.retry_after == 60
+        now += timedelta(minutes=1)
+    assert result.retry_after == 900
     assert secret.get_secret_value() not in repr(result)
     await host.session.commit()  # An expected error response must retain the budget.
     state = await CodeAttempts.state(host.session, FAILURE_SCOPE, USER_ID)
@@ -89,20 +88,25 @@ async def test_changed_offer_and_host_configuration_error_do_not_add_code_failur
 ) -> None:
     secret = await code(host)
     service = lookup(host)
-    preview = await service.inspect(host.session, USER_ID, secret)
+    now = datetime.now(UTC)
+    preview = await service.inspect(host.session, USER_ID, secret, now=now)
     assert preview.offer is not None
     expected = OfferReference(
         invitation_id=preview.offer.invitation_id,
         contract_id=preview.offer.contract.id,
         contract_version=preview.offer.contract.version + 1,
     )
-    changed = await service.inspect(host.session, USER_ID, secret, expected=expected)
+    changed = await service.inspect(
+        host.session, USER_ID, secret, expected=expected, now=now + timedelta(minutes=1)
+    )
     assert changed.status == 409 and changed.error == "minishop_corp_offer_changed"
     contract = await host.session.get(Contract, expected.contract_id)
     assert contract is not None
     contract.tariff_key = "removed-from-host-catalog"
     await host.session.flush()
-    unavailable = await service.inspect(host.session, USER_ID, secret)
+    unavailable = await service.inspect(
+        host.session, USER_ID, secret, now=now + timedelta(minutes=2)
+    )
     assert unavailable.status == 503 and unavailable.error == "minishop_corp_tariff_unavailable"
     assert await CodeAttempts.state(host.session, FAILURE_SCOPE, USER_ID) is None
 
@@ -122,6 +126,6 @@ async def test_revocation_is_checked_again_for_confirmation(host: Host) -> None:
         host.session, USER_ID, expected.contract_id, expected.invitation_id
     )
     confirmed = await service.inspect(
-        host.session, USER_ID, secret, expected=expected, now=now + timedelta(seconds=1)
+        host.session, USER_ID, secret, expected=expected, now=now + timedelta(minutes=1)
     )
     assert confirmed.status == 400 and confirmed.offer is None

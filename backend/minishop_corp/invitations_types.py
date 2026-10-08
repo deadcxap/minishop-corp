@@ -65,6 +65,12 @@ class OfferReference(BaseModel):
     contract_version: int = Field(strict=True, gt=0)
 
 
+class PreviewInvitation(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    # Format checks happen inside the attempt budget, including an empty string.
+    code: SecretStr = Field(max_length=256)
+
+
 class TariffOffer(BaseModel):
     model_config = ConfigDict(frozen=True)
     key: str
