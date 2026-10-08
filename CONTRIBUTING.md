@@ -37,6 +37,7 @@
 # По умолчанию читает ../remnawave-minishop; можно задать MINISHOP_SOURCE.
 bash scripts/setup.sh
 bash scripts/check.sh
+bash scripts/integration-check.sh
 ```
 
 `setup.sh` проверяет чистоту и ревизию Minishop из `dev/minishop.json`, устанавливает
@@ -49,6 +50,10 @@ Node 24 запускается из контейнера, закреплённо
 Исходники ядра доступны анализатору типов; их собственный тестовый набор не запускается.
 Для обновления Python lock используйте `bash scripts/lock-python.sh`; версии
 зависимостей host ограничены requirements закреплённого Minishop.
+
+`integration-check.sh` отдельно проверяет адаптер на настоящем Minishop и PostgreSQL
+с HTTP-двойником панели. Устройство проверок и границы совместимости описаны в
+[документе адаптера](docs/minishop-compatibility.md).
 
 Для проверки настоящего Minishop:
 

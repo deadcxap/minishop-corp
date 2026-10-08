@@ -23,6 +23,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --basetemp=.local/pytest"
+cache_dir = ".local/pytest-cache"
 
 [tool.ruff]
 target-version = "py312"

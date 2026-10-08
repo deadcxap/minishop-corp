@@ -25,6 +25,8 @@ jobs:
         run: bash scripts/setup.sh
       - name: Lint, typecheck, test and build
         run: bash scripts/check.sh
+      - name: Entitlement contracts against native Minishop and PostgreSQL
+        run: bash scripts/integration-check.sh
       - name: Start isolated host and validate installed plugin
         run: |
           bash scripts/stand.sh up

@@ -4,6 +4,7 @@ x-runtime: &runtime
   build:
     context: ../.local/build-context
     dockerfile: ../../dev/Dockerfile
+    target: runtime
   image: minishop-corp-dev-runtime:local
   user: "${CORP_UID:?}:${CORP_GID:?}"
   read_only: true
@@ -47,6 +48,30 @@ x-runtime: &runtime
       condition: service_healthy
 
 services:
+  integration:
+    profiles: [tests]
+    build:
+      context: ../.local/build-context
+      dockerfile: ../../dev/Dockerfile
+      target: integration
+    image: minishop-corp-integration:local
+    user: "${CORP_UID:?}:${CORP_GID:?}"
+    read_only: true
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace:ro
+      - ../.local/integration:/workspace/.local
+      - ${MINISHOP_SOURCE:?}:/minishop:ro
+    environment:
+      CORP_INTEGRATION: "1"
+      PYTHONPATH: /workspace/backend:/minishop/backend
+      PYTHONDONTWRITEBYTECODE: "1"
+      MINISHOP_PLUGIN_STORE: /workspace/.local/plugin-store
+      TMPDIR: /workspace/.local/tmp
+    command: ["python", "-m", "pytest", "tests/integration", "-q"]
+    depends_on:
+      postgres:
+        condition: service_healthy
   postgres:
     image: postgres:17.11-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
     environment:
