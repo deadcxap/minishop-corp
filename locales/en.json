@@ -11,5 +11,13 @@
   "minishop_corp_trial_unavailable": "A new trial cannot be issued with the current store settings. Please contact support.",
   "minishop_corp_renewal_policy_required": "A subscription with auto-renewal cannot be transferred yet. Please contact support.",
   "minishop_corp_flexible_limits_unsupported": "This subscription has separately purchased traffic quotas. An administrator needs to review the transfer.",
-  "minishop_corp_subscription_missing": "Subscription not found. Please contact support."
+  "minishop_corp_subscription_missing": "Subscription not found. Please contact support.",
+  "minishop_corp_access_denied": "You do not have access to this action.",
+  "minishop_corp_account_unavailable": "The manager account is missing or blocked.",
+  "minishop_corp_squad_unavailable": "Unable to confirm the external squad. Check the selection and panel availability.",
+  "minishop_corp_request_conflict": "This request conflicts with saved changes. Refresh the data.",
+  "minishop_corp_version_conflict": "The contract terms have changed. Refresh the data before saving.",
+  "minishop_corp_contract_missing": "The contract is missing or unavailable.",
+  "minishop_corp_invalid_request": "Check the request fields.",
+  "minishop_corp_operation_stale": "The terms or membership have changed. Refresh the data."
 }

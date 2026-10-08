@@ -16,6 +16,8 @@ class Panel:
         self.lose_create_response = False
         self.fail_after_trial_activation = False
         self.trial_applied = False
+        self.external_squads: dict[str, dict[str, object]] = {}
+        self.fail_squads = False
         self.app = web.Application()
         self.app.router.add_route("*", "/api/{path:.*}", self.handle)
 
@@ -25,10 +27,20 @@ class Panel:
         self.requests.append((method, path))
         if method == "GET" and path == "system/metadata":
             return web.json_response({"response": {"version": "2.8.1"}})
+        if method == "GET" and path.startswith("external-squads/"):
+            if self.fail_squads:
+                return web.json_response({"message": "Unavailable"}, status=503)
+            squad = self.external_squads.get(path.removeprefix("external-squads/"))
+            if squad is None:
+                return web.json_response({"message": "Not found"}, status=404)
+            return web.json_response({"response": squad})
         if method == "GET" and path == "users":
             return web.json_response(
                 {"response": {"users": list(self.users.values()), "total": len(self.users)}}
             )
+        if method == "DELETE" and path.startswith("users/"):
+            self.users.pop(path.removeprefix("users/"), None)
+            return web.json_response({"response": {"isDeleted": True}})
         if method == "POST" and path == "users/bulk/update-squads":
             body = await request.json()
             assert set(body) == {"uuids", "activeInternalSquads"}

@@ -171,3 +171,34 @@ async def test_concurrent_membership_uses_one_account_slot(engine: AsyncEngine) 
             == 1
         )
     # All committed fixtures live only in the disposable per-run database.
+
+
+async def test_former_member_and_manager_history_does_not_block_deletion(host: Host) -> None:
+    successor = USER_ID + 1
+    await user_dal.create_user(host.session, {"user_id": successor})
+    contract = await seed_contract(host.session)
+    contract.manager_user_id = successor
+    host.session.add(
+        Membership(
+            contract_id=contract.id,
+            user_id=USER_ID,
+            current_user_id=None,
+            state="left",
+            ended_at=datetime.now(UTC),
+        )
+    )
+    await host.session.flush()
+    assert await delete_user_and_relations(host.session, USER_ID)
+    assert await user_dal.get_user_by_id(host.session, USER_ID) is None
+    assert (
+        await host.session.scalar(
+            select(Membership.user_id).where(Membership.contract_id == contract.id)
+        )
+        == USER_ID
+    )
+    assert (
+        await host.session.scalar(
+            select(Revision.manager_user_id).where(Revision.contract_id == contract.id)
+        )
+        == USER_ID
+    )

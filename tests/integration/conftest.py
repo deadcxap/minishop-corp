@@ -117,6 +117,7 @@ async def host(engine: AsyncEngine, tmp_path: Path) -> AsyncIterator[Host]:
         )
     )
     panel = Panel()
+    panel.external_squads[EXTERNAL_SQUAD] = {"uuid": EXTERNAL_SQUAD, "name": "Synthetic squad"}
     async with TestServer(panel.app) as server:
         settings = make_settings(
             PANEL_API_URL=str(server.make_url("/api")),
@@ -129,6 +130,7 @@ async def host(engine: AsyncEngine, tmp_path: Path) -> AsyncIterator[Host]:
             TRIAL_TRAFFIC_LIMIT_GB=1,
             TRIAL_HWID_DEVICE_LIMIT=1,
             TRIAL_SQUAD_UUIDS=TRIAL_SQUAD,
+            WEBAPP_SESSION_SECRET="synthetic-integration-session-secret",
         )
         panel_service = PanelApiService(settings)
         service = SubscriptionService(settings, panel_service)

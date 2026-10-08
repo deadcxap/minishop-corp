@@ -11,5 +11,13 @@
   "minishop_corp_trial_unavailable": "При текущих настройках магазина новый триал недоступен. Обратитесь в поддержку.",
   "minishop_corp_renewal_policy_required": "Перевод подписки с автопродлением пока недоступен. Обратитесь в поддержку.",
   "minishop_corp_flexible_limits_unsupported": "У подписки есть отдельно оплаченные квоты трафика. Для перехода нужна обработка администратором.",
-  "minishop_corp_subscription_missing": "Подписка не найдена. Обратитесь в поддержку."
+  "minishop_corp_subscription_missing": "Подписка не найдена. Обратитесь в поддержку.",
+  "minishop_corp_access_denied": "Нет доступа к этому действию.",
+  "minishop_corp_account_unavailable": "Учётная запись управляющего не найдена или заблокирована.",
+  "minishop_corp_squad_unavailable": "Не удалось подтвердить внешний сквад. Проверьте выбор и доступность панели.",
+  "minishop_corp_request_conflict": "Запрос конфликтует с сохранёнными изменениями. Обновите данные.",
+  "minishop_corp_version_conflict": "Условия контракта уже изменены. Обновите данные перед сохранением.",
+  "minishop_corp_contract_missing": "Контракт не найден или недоступен.",
+  "minishop_corp_invalid_request": "Проверьте заполненные поля запроса.",
+  "minishop_corp_operation_stale": "Условия или членство изменились. Обновите данные."
 }

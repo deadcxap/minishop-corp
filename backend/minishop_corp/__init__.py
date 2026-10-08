@@ -30,7 +30,7 @@ class CorporatePlugin(Plugin):
         # keep the same source dictionaries at the repository/archive root.
         return packaged if packaged.is_dir() else Path(__file__).parents[2] / "locales"
 
-    # The inherited migration and worker hooks are empty until S03 and S06.
+    # The inherited worker hook remains empty until S06.
 
 
 plugin = CorporatePlugin()

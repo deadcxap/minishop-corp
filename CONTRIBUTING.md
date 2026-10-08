@@ -51,9 +51,10 @@ Node 24 запускается из контейнера, закреплённо
 Для обновления Python lock используйте `bash scripts/lock-python.sh`; версии
 зависимостей host ограничены requirements закреплённого Minishop.
 
-`integration-check.sh` отдельно проверяет адаптер на настоящем Minishop и PostgreSQL
-с HTTP-двойником панели. Устройство проверок и границы совместимости описаны в
-[документе адаптера](docs/minishop-compatibility.md).
+`integration-check.sh` проверяет адаптер, хранилище, гонки и API/права на настоящем
+Minishop и PostgreSQL с HTTP-двойником панели. Устройство проверок и границы
+совместимости описаны в [документе адаптера](docs/minishop-compatibility.md),
+[схеме хранения](docs/storage.md) и [API контрактов](docs/contracts-api.md).
 
 Для проверки настоящего Minishop:
 

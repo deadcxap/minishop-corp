@@ -52,6 +52,11 @@ def test_routes_only_in_webapp(context: PluginContext) -> None:
     assert {route.resource.canonical for route in app.router.routes()} == {
         "/api/plugins/minishop-corp/status",
         "/api/admin/minishop-corp/status",
+        "/api/admin/minishop-corp/contracts",
+        "/api/admin/minishop-corp/contracts/{contract_id}",
+        "/api/plugins/minishop-corp/managed-contracts",
+        "/api/plugins/minishop-corp/managed-contracts/{contract_id}",
+        "/api/plugins/minishop-corp/contracts/{contract_id}",
     }
 
 

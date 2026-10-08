@@ -12,6 +12,7 @@ from bot.services.account_roles import grant_role
 from config.settings import get_settings
 from db.dal import user_dal
 from db.database_setup import init_db_connection
+from sqlalchemy import text
 
 
 async def main() -> None:
@@ -58,6 +59,15 @@ async def main() -> None:
                 )
             await grant_role(session, 910002, "admin", source="corp_dev_fixture")
             await session.commit()
+            assert (
+                await session.scalar(
+                    text(
+                        "SELECT count(*) FROM schema_migrations "
+                        "WHERE id = 'minishop-corp.0001_initial'"
+                    )
+                )
+                == 1
+            )
 
         async def get(path: str, user_id: int, expected: int = 200) -> dict[str, object]:
             headers = {"Authorization": f"Bearer {create_webapp_session_token(settings, user_id)}"}
@@ -74,6 +84,9 @@ async def main() -> None:
         await get("/api/admin/minishop-corp/status", 910001, 403)
         await get("/api/admin/minishop-corp/status", 910003, 403)
         await get("/api/admin/minishop-corp/status", 910002)
+        await get("/api/admin/minishop-corp/contracts", 910001, 403)
+        assert "contracts" in await get("/api/admin/minishop-corp/contracts", 910002)
+        assert "contracts" in await get("/api/plugins/minishop-corp/managed-contracts", 910001)
 
         customer = await get("/api/extensions/runtime", 910001)
         admin = await get("/api/admin/plugins/runtime", 910002)
@@ -105,6 +118,7 @@ async def main() -> None:
         )
         print("PASS: customer/admin authorization, banned/missing users, runtime and signed assets")
         print("PASS: backend and worker are active in the same package generation")
+        print("PASS: corporate migration applied and contract collection routes installed")
 
 
 if __name__ == "__main__":
