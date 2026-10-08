@@ -25,10 +25,12 @@ from .access_types import (
     AccessError,
     AccessFailure,
     AccessState,
+    DisabledAccess,
     PeriodAccess,
     TrialAccess,
     panel_time,
 )
+from .billing import require_clear_billing
 
 SOURCE = "minishop-corp"
 
@@ -50,6 +52,19 @@ class AccessAdapter:
         return TrialAccess(
             starts_at, starts_at + timedelta(days=self.service.settings.TRIAL_DURATION_DAYS)
         )
+
+    def prepare_departure(self, *, starts_at: datetime) -> TrialAccess | DisabledAccess:
+        if (
+            not self.service.settings.TRIAL_ENABLED
+            or self.service.settings.TRIAL_DURATION_DAYS <= 0
+        ):
+            return DisabledAccess(starts_at)
+        return self.prepare_trial(starts_at=starts_at)
+
+    async def validate_join(self, session: AsyncSession, user_id: int) -> None:
+        await self._lock_user(session, user_id)
+        await require_clear_billing(session, user_id)
+        await self._require_supported_quotas(session, await self._current(session, user_id))
 
     async def assign_period(
         self, session: AsyncSession, user_id: int, target: PeriodAccess
@@ -318,6 +333,78 @@ class AccessAdapter:
         await session.flush()
         return AccessState.model_validate(row)
 
+    async def disable_access(
+        self, session: AsyncSession, user_id: int, target: DisabledAccess
+    ) -> AccessState:
+        """Q-02: remove corporate entitlements without creating a trial or a payment."""
+        user = await self._lock_user(session, user_id)
+        row = await self._current(session, user_id)
+        if row is None:
+            raise AccessError(AccessFailure.SUBSCRIPTION_MISSING)
+        self._require_resolved_renewal(row)
+        await self._require_supported_quotas(session, row)
+        state = AccessState.model_validate(row)
+        previous = self._managed_squads(row)
+        defaults = list(self.service.settings.parsed_user_squad_uuids or [])
+        snapshot = await self.service._get_panel_user_for_entitlement_verification(
+            state.panel_user_uuid
+        )
+        if snapshot is None:
+            raise AccessError(AccessFailure.PANEL_UNCONFIRMED)
+        await self.service.capture_panel_squad_overrides(
+            session,
+            user_id=user_id,
+            panel_user_uuid=state.panel_user_uuid,
+            managed_internal_squads=[*previous, *defaults],
+            panel_user_snapshot=snapshot,
+        )
+        await self._remove_obsolete_panel_overrides(session, state, previous)
+        external = self.service.settings.parsed_user_external_squad_uuid
+        await squad_dal.set_external_override(
+            session,
+            user_id=user_id,
+            panel_user_uuid=state.panel_user_uuid,
+            mode="set" if external else "cleared",
+            squad_uuid=external,
+            source=SOURCE,
+        )
+        await subscription_dal.update_subscription(
+            session,
+            state.subscription_id,
+            {
+                "end_date": min(target.ends_at, panel_time(datetime.now(UTC))),
+                "is_active": False,
+                "status_from_panel": "EXPIRED",
+                "tariff_key": None,
+                "provider": "admin",
+                "tariff_binding_source": "admin",
+                "tariff_binding_note": SOURCE,
+                "gift_terms_snapshot": None,
+                "tier_baseline_bytes": None,
+                "premium_baseline_bytes": 0,
+                "hwid_device_limit_is_override": False,
+                "effective_monthly_price_rub": None,
+                "is_throttled": False,
+            },
+        )
+        await subscription_dal.deactivate_all_user_subscriptions(session, user_id)
+        await session.refresh(row)
+        await self._synchronize(
+            session,
+            user,
+            row,
+            managed_squads=defaults,
+            strategy=self.service.settings.USER_TRAFFIC_STRATEGY,
+            devices=self.service.settings.USER_HWID_DEVICE_LIMIT,
+            is_trial=False,
+        )
+        remember_subscription_tariff_managed_squad_uuids(row, defaults)
+        await squad_dal.deactivate_external_override(
+            session, user_id=user_id, panel_user_uuid=state.panel_user_uuid
+        )
+        await session.flush()
+        return AccessState.model_validate(row)
+
     async def _synchronize(
         self,
         session: AsyncSession,
@@ -421,7 +508,7 @@ class AccessAdapter:
     @staticmethod
     def _require_resolved_renewal(row: Subscription | None) -> None:
         if row is not None and AccessState.model_validate(row).auto_renew_enabled:
-            # Q-03 is unresolved. This adapter must not cancel an external recurrence.
+            # Q-03: require native cancellation, never cancel an external recurrence here.
             raise AccessError(AccessFailure.RENEWAL_POLICY_REQUIRED)
 
     async def _require_supported_quotas(

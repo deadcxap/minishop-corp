@@ -9,7 +9,8 @@
   "minishop_corp_tariff_unavailable": "The contract plan is unavailable. Please contact support.",
   "minishop_corp_panel_unconfirmed": "Access changes have not been confirmed yet. The operation needs to be retried.",
   "minishop_corp_trial_unavailable": "A new trial cannot be issued with the current store settings. Please contact support.",
-  "minishop_corp_renewal_policy_required": "A subscription with auto-renewal cannot be transferred yet. Please contact support.",
+  "minishop_corp_renewal_policy_required": "First disable auto-renewal using the store's subscription controls.",
+  "minishop_corp_payment_pending": "First complete or cancel pending personal payments in the store.",
   "minishop_corp_flexible_limits_unsupported": "This subscription has separately purchased traffic quotas. An administrator needs to review the transfer.",
   "minishop_corp_subscription_missing": "Subscription not found. Please contact support.",
   "minishop_corp_access_denied": "You do not have access to this action.",
@@ -27,5 +28,12 @@
   "minishop_corp_operation_unresolved": "The operation result is not yet confirmed. Its reservation is retained.",
   "minishop_corp_code_shown_once": "The code is shown only when issued. If it was not saved, revoke the invitation or rotate the reusable code.",
   "minishop_corp_code_throttled": "Too many attempts. Try again after the indicated delay.",
-  "minishop_corp_offer_changed": "The invitation terms have changed. Review the offer again."
+  "minishop_corp_offer_changed": "The invitation terms have changed. Review the offer again.",
+  "minishop_corp_already_member": "You already belong to a corporate contract. Leave your current group before joining another.",
+  "minishop_corp_membership_missing": "Member not found or unavailable.",
+  "minishop_corp_operation_missing": "Operation not found or unavailable.",
+  "minishop_corp_operation_busy": "Wait for the current access change to finish. Contact support if it takes too long.",
+  "minishop_corp_operation_failed": "The access change could not be confirmed. It will be retried automatically.",
+  "wa_minishop_corp_payment_notice": "Do not pay for a personal subscription while in a corporate group. Contact support if you have a problem.",
+  "wa_minishop_corp_expired_notice": "The corporate contract has expired. You can wait for renewal or leave the group and pay for your own subscription."
 }

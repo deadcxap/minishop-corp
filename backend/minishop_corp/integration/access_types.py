@@ -41,12 +41,21 @@ class TrialAccess:
             raise ValueError("Trial end must follow its start")
 
 
+@dataclass(frozen=True)
+class DisabledAccess:
+    ends_at: datetime
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "ends_at", panel_time(self.ends_at))
+
+
 class AccessFailure(StrEnum):
     USER_MISSING = "minishop_corp_user_missing"
     TARIFF_UNAVAILABLE = "minishop_corp_tariff_unavailable"
     PANEL_UNCONFIRMED = "minishop_corp_panel_unconfirmed"
     TRIAL_UNAVAILABLE = "minishop_corp_trial_unavailable"
     RENEWAL_POLICY_REQUIRED = "minishop_corp_renewal_policy_required"
+    PAYMENT_PENDING = "minishop_corp_payment_pending"
     FLEXIBLE_LIMITS_UNSUPPORTED = "minishop_corp_flexible_limits_unsupported"
     SUBSCRIPTION_MISSING = "minishop_corp_subscription_missing"
 
