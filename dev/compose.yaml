@@ -62,6 +62,7 @@ services:
       - ..:/workspace:ro
       - ../.local/integration:/workspace/.local
       - ${MINISHOP_SOURCE:?}:/minishop:ro
+      - ${KIRO_WHEEL_SOURCE:?}:/kiro-wheel:ro
     environment:
       CORP_INTEGRATION: "1"
       POSTGRES_HOST: postgres

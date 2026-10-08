@@ -4,6 +4,7 @@ set -euo pipefail
 CORP_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$CORP_ROOT"
 export MINISHOP_SOURCE="${MINISHOP_SOURCE:-$CORP_ROOT/../remnawave-minishop}"
+export KIRO_WHEEL_SOURCE="${KIRO_WHEEL_SOURCE:-$CORP_ROOT/../kiro-wheel}"
 export PYTHONDONTWRITEBYTECODE=1
 export TMPDIR="$CORP_ROOT/.local/tmp"
 export UV_CACHE_DIR="$CORP_ROOT/.local/uv"
