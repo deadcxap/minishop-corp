@@ -89,6 +89,9 @@ async def main() -> None:
         await get("/api/admin/minishop-corp/status", 910002)
         await get("/api/admin/minishop-corp/contracts", 910001, 403)
         assert "contracts" in await get("/api/admin/minishop-corp/contracts", 910002)
+        for option in ("tariffs", "accounts"):
+            await get(f"/api/admin/minishop-corp/options/{option}", 910001, 403)
+            assert option in await get(f"/api/admin/minishop-corp/options/{option}", 910002)
         assert "contracts" in await get("/api/plugins/minishop-corp/managed-contracts", 910001)
         assert (await get("/api/plugins/minishop-corp/membership", 910001))["membership"] is None
         await get("/api/plugins/minishop-corp/membership", 910003, 403)

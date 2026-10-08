@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 BACKEND = os.environ.get("CORP_BACKEND_ORIGIN", "http://127.0.0.1:18081")
 ALLOWED = re.compile(
     r"/api/(?:plugins/minishop-corp/status|admin/minishop-corp/status|"
+    r"admin/minishop-corp/options/(?:tariffs|squad|accounts)|"
+    r"admin/minishop-corp/contracts(?:/[0-9a-f-]{36}(?:/invitations|"
+    r"/members(?:/[0-9a-f-]{36}/avatar)?|/synchronization(?:/operations)?)?)?|"
     r"extensions/runtime|admin/plugins/runtime|"
     r"(?:extensions|admin/plugins)/assets/minishop-corp/[0-9a-f]{64}/"
     r"(?:admin|customer)/index\.(?:js|css))\Z"
@@ -35,7 +38,7 @@ async def proxy(request: web.Request) -> web.Response:
     audience = "admin" if request.path.startswith("/api/admin/") else "customer"
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as client:
         async with client.get(
-            BACKEND + request.path,
+            BACKEND + request.path_qs,
             headers={"Authorization": f"Bearer {sessions[audience]}"},
             allow_redirects=False,
         ) as response:

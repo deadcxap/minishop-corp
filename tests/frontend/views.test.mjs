@@ -7,6 +7,8 @@ import * as admin from "../../frontend/dist/admin/index.js";
 function target() {
   const window = new Window();
   globalThis.document = window.document;
+  globalThis.HTMLElement = window.HTMLElement;
+  globalThis.HTMLInputElement = window.HTMLInputElement;
   const element = window.document.createElement("main");
   window.document.body.append(element);
   return element;
@@ -51,12 +53,12 @@ test("failed request gives a localized message and leaves the host DOM alone", a
 test("admin uses its own authenticated endpoint", async (context) => {
   const element = target();
   context.mock.method(globalThis, "fetch", async (path, options) => {
-    assert.equal(path, "/api/admin/minishop-corp/status");
+    assert.equal(path, "/api/admin/minishop-corp/contracts?limit=25");
     assert.equal(options.credentials, "same-origin");
-    return Response.json({ ok: true, stage: "scaffold" });
+    return Response.json({ ok: true, contracts: [] });
   });
   const view = admin.mountView("corporate-contracts", element, { currentLang: "en" });
   await flush();
-  assert.match(element.textContent, /Corporate contract management will be available/);
+  assert.match(element.textContent, /No contracts yet/);
   admin.unmountView(view);
 });
