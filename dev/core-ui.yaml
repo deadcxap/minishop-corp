@@ -1,0 +1,5 @@
+# Overlay generated inside minishop-corp; the neighboring core remains read-only.
+services:
+  backend:
+    volumes:
+      - ../.local/core-ui/backend/bot/app/web/templates:/minishop/backend/bot/app/web/templates:ro

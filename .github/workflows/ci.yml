@@ -39,6 +39,8 @@ jobs:
           bash scripts/stand.sh up
           bash scripts/stand.sh check
           bash scripts/browser-check.sh
+      - name: Full Minishop frontend and native plugin APIs
+        run: bash scripts/core-ui-check.sh
       - name: Host logs
         if: always()
         run: bash scripts/stand.sh logs --no-color --tail=100 backend worker
