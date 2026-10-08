@@ -15,6 +15,7 @@ class Panel:
         self.lose_update_response = False
         self.lose_create_response = False
         self.fail_after_trial_activation = False
+        self.fail_trial_activation = False
         self.trial_applied = False
         self.external_squads: dict[str, dict[str, object]] = {}
         self.fail_squads = False
@@ -90,7 +91,11 @@ class Panel:
                         {"message": "Lost creation acknowledgement"}, status=503
                     )
                 return web.json_response({"response": user}, status=201)
-            if self.fail_updates or (self.fail_after_trial_activation and self.trial_applied):
+            if (
+                self.fail_updates
+                or (self.fail_after_trial_activation and self.trial_applied)
+                or (self.fail_trial_activation and body.get("tag") == "TRIAL")
+            ):
                 return web.json_response({"message": "Unavailable"}, status=503)
             identifier = str(body["uuid"])
             user = {**self.users[identifier], **body}

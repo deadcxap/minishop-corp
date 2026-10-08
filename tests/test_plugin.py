@@ -24,13 +24,13 @@ def context() -> PluginContext:
     return PluginContext(settings=settings)
 
 
-def test_installed_entry_point_and_noop_hooks(context: PluginContext) -> None:
+def test_installed_entry_point_and_worker_hooks(context: PluginContext) -> None:
     points = entry_points(group="minishop.plugins", name="minishop-corp")
     assert len(points) == 1
     loaded = next(iter(points)).load()
     assert isinstance(loaded, Plugin)
     assert loaded is plugin
-    assert plugin.worker_tasks(context) == []
+    assert [task.name for task in plugin.worker_tasks(context)] == ["minishop-corp.operations"]
     assert [item.id for item in plugin.migrations()] == [
         "minishop-corp.0001_initial",
         "minishop-corp.0002_invitation_replacements",
@@ -61,6 +61,14 @@ def test_routes_only_in_webapp(context: PluginContext) -> None:
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}",
         "/api/plugins/minishop-corp/contracts/{contract_id}",
         "/api/plugins/minishop-corp/invitations/preview",
+        "/api/plugins/minishop-corp/membership",
+        "/api/plugins/minishop-corp/membership/confirm",
+        "/api/plugins/minishop-corp/memberships/{membership_id}/leave",
+        "/api/plugins/minishop-corp/operations/{operation_id}",
+        "/api/admin/minishop-corp/contracts/{contract_id}/members/{membership_id}/exclude",
+        "/api/admin/minishop-corp/contracts/{contract_id}/operations/{operation_id}",
+        "/api/plugins/minishop-corp/managed-contracts/{contract_id}/members/{membership_id}/exclude",
+        "/api/plugins/minishop-corp/managed-contracts/{contract_id}/operations/{operation_id}",
         "/api/admin/minishop-corp/contracts/{contract_id}/invitations",
         "/api/admin/minishop-corp/contracts/{contract_id}/invitations/{invitation_id}/rotate",
         "/api/admin/minishop-corp/contracts/{contract_id}/invitations/{invitation_id}/revoke",

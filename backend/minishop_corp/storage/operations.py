@@ -1,4 +1,4 @@
-"""Persist operation intent. Execution, leases and retries belong to S05/S06."""
+"""Persist typed operation intent; delivery and fencing live in operation_worker."""
 
 from typing import Annotated, Literal
 from uuid import UUID
@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..contracts_types import AccountId, ContractError, Version
-from ..integration.access_types import PeriodAccess, TrialAccess
+from ..integration.access_types import DisabledAccess, PeriodAccess, TrialAccess
 from .schema import Contract, Membership, Operation, OperationKind, Revision
 
 
@@ -18,6 +18,8 @@ class PeriodTarget(BaseModel):
     tariff_key: str = Field(min_length=1, max_length=128)
     ends_at: AwareDatetime
     external_squad_uuid: UUID
+    # Preserve the offer accepted by the request when queued terms are refreshed.
+    accepted_version: Version | None = None
 
     def access(self) -> PeriodAccess:
         return PeriodAccess(self.tariff_key, self.ends_at, str(self.external_squad_uuid))
@@ -38,6 +40,15 @@ class TrialTarget(BaseModel):
         return TrialAccess(self.starts_at, self.ends_at)
 
 
+class DisabledTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal["disabled"] = "disabled"
+    ends_at: AwareDatetime
+
+    def access(self) -> DisabledAccess:
+        return DisabledAccess(self.ends_at)
+
+
 class OperationDraft(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     contract_id: UUID
@@ -48,7 +59,7 @@ class OperationDraft(BaseModel):
     actor_user_id: AccountId
     request_id: UUID
     kind: OperationKind
-    target: Annotated[PeriodTarget | TrialTarget, Field(discriminator="kind")]
+    target: Annotated[PeriodTarget | TrialTarget | DisabledTarget, Field(discriminator="kind")]
 
     @model_validator(mode="after")
     def valid_target(self) -> "OperationDraft":

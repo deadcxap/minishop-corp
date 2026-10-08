@@ -88,6 +88,13 @@ async def main() -> None:
         await get("/api/admin/minishop-corp/contracts", 910001, 403)
         assert "contracts" in await get("/api/admin/minishop-corp/contracts", 910002)
         assert "contracts" in await get("/api/plugins/minishop-corp/managed-contracts", 910001)
+        assert (await get("/api/plugins/minishop-corp/membership", 910001))["membership"] is None
+        await get("/api/plugins/minishop-corp/membership", 910003, 403)
+        await get(
+            "/api/plugins/minishop-corp/operations/00000000-0000-4000-8000-000000000000",
+            910001,
+            404,
+        )
 
         preview_path = base + "/api/plugins/minishop-corp/invitations/preview"
         async with client.post(preview_path, json={"code": ""}) as response:
@@ -134,6 +141,7 @@ async def main() -> None:
         print("PASS: backend and worker are active in the same package generation")
         print("PASS: corporate migration applied and contract collection routes installed")
         print("PASS: invitation preview authenticates and persists the Q-01 attempt limit")
+        print("PASS: membership and operation routes authenticate and preserve scoped responses")
 
 
 if __name__ == "__main__":

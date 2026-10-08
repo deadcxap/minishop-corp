@@ -126,8 +126,9 @@ runtime, ревизию ядра, хеши и подпись Ed25519. При о�
 появятся в S10; тестовый ключ нельзя переносить на рабочий Minishop.
 
 Пакет использует Plugin API v1, frontend host API v1 и capabilities `user_ui`,
-`ui_composition`. Собственные миграции и worker-хуки пока пустые. Публичный Plugin API
-используется при регистрации; внутренние функции авторизации собраны в
+`ui_composition`. Зарегистрированы две собственные миграции и worker операций
+`minishop-corp.operations`. Публичный Plugin API используется при регистрации;
+внутренние функции авторизации и другие зависимости ядра собраны в
 `backend/minishop_corp/integration/auth.py`. Их поведение проверяется на указанной
 ревизии. Наличие флага `admin_authorized` обеспечивается middleware Minishop, а не UI.
 

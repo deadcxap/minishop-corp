@@ -3,10 +3,11 @@
 from pathlib import Path
 
 from aiohttp import web
-from bot.plugins.spec import WEB_SCOPE_WEBAPP, Plugin, PluginContext
+from bot.plugins.spec import WEB_SCOPE_WEBAPP, Plugin, PluginContext, WorkerTaskSpec
 
 from .api import setup_routes
 from .integration.migrations import Migration, migrations
+from .integration.worker import run_operations
 
 __version__ = "0.1.0"
 
@@ -30,7 +31,8 @@ class CorporatePlugin(Plugin):
         # keep the same source dictionaries at the repository/archive root.
         return packaged if packaged.is_dir() else Path(__file__).parents[2] / "locales"
 
-    # The inherited worker hook remains empty until S06.
+    def worker_tasks(self, ctx: PluginContext) -> list[WorkerTaskSpec]:
+        return [WorkerTaskSpec(name="minishop-corp.operations", factory=run_operations)]
 
 
 plugin = CorporatePlugin()
