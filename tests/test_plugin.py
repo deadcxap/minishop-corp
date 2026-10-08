@@ -31,7 +31,10 @@ def test_installed_entry_point_and_noop_hooks(context: PluginContext) -> None:
     assert isinstance(loaded, Plugin)
     assert loaded is plugin
     assert plugin.worker_tasks(context) == []
-    assert [item.id for item in plugin.migrations()] == ["minishop-corp.0001_initial"]
+    assert [item.id for item in plugin.migrations()] == [
+        "minishop-corp.0001_initial",
+        "minishop-corp.0002_invitation_replacements",
+    ]
 
 
 def test_locales_have_identical_keys_and_no_empty_values() -> None:
@@ -57,6 +60,11 @@ def test_routes_only_in_webapp(context: PluginContext) -> None:
         "/api/plugins/minishop-corp/managed-contracts",
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}",
         "/api/plugins/minishop-corp/contracts/{contract_id}",
+        "/api/admin/minishop-corp/contracts/{contract_id}/invitations",
+        "/api/admin/minishop-corp/contracts/{contract_id}/invitations/{invitation_id}/rotate",
+        "/api/admin/minishop-corp/contracts/{contract_id}/invitations/{invitation_id}/revoke",
+        "/api/plugins/minishop-corp/managed-contracts/{contract_id}/invitations",
+        "/api/plugins/minishop-corp/managed-contracts/{contract_id}/invitations/{invitation_id}/rotate",
     }
 
 

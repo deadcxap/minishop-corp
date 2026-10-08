@@ -19,5 +19,11 @@
   "minishop_corp_version_conflict": "Условия контракта уже изменены. Обновите данные перед сохранением.",
   "minishop_corp_contract_missing": "Контракт не найден или недоступен.",
   "minishop_corp_invalid_request": "Проверьте заполненные поля запроса.",
-  "minishop_corp_operation_stale": "Условия или членство изменились. Обновите данные."
+  "minishop_corp_operation_stale": "Условия или членство изменились. Обновите данные.",
+  "minishop_corp_invitation_unavailable": "Код недоступен. Проверьте его или запросите новый у управляющего.",
+  "minishop_corp_invitation_missing": "Приглашение не найдено или недоступно.",
+  "minishop_corp_invitation_exists": "Постоянный код уже создан. Используйте его замену.",
+  "minishop_corp_contract_expired": "Срок контракта истёк. Сначала продлите контракт.",
+  "minishop_corp_operation_unresolved": "Результат операции ещё не подтверждён. Резерв сохраняется.",
+  "minishop_corp_code_shown_once": "Код показывается только при создании. Если он не сохранён, отзовите приглашение или замените постоянный код."
 }

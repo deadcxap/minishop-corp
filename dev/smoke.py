@@ -63,10 +63,11 @@ async def main() -> None:
                 await session.scalar(
                     text(
                         "SELECT count(*) FROM schema_migrations "
-                        "WHERE id = 'minishop-corp.0001_initial'"
+                        "WHERE id IN ('minishop-corp.0001_initial', "
+                        "'minishop-corp.0002_invitation_replacements')"
                     )
                 )
-                == 1
+                == 2
             )
 
         async def get(path: str, user_id: int, expected: int = 200) -> dict[str, object]:

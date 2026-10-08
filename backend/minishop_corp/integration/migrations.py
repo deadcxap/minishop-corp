@@ -4,6 +4,8 @@ from db.migrator.engine import Migration as Migration
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from .migration_0002 import upgrade as invitation_replacements
+
 # Fixed, namespaced schema; all constraints/indexes belong to plugin tables.
 INITIAL_DDL = (
     """CREATE TABLE ext_minishop_corp_contracts (
@@ -164,5 +166,10 @@ def migrations() -> list[Migration]:
             id="minishop-corp.0001_initial",
             description="Corporate contracts, memberships, invitations, operations and audit",
             upgrade=initial_schema,
-        )
+        ),
+        Migration(
+            id="minishop-corp.0002_invitation_replacements",
+            description="Track invitation replacement and make rotation retries safe",
+            upgrade=invitation_replacements,
+        ),
     ]

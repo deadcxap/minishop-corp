@@ -48,7 +48,7 @@ async def test_native_migration_chain_rolled_back_then_replayed(engine: AsyncEng
             await connection.scalar(
                 text("SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'")
             )
-            == 1
+            == 2
         )
         names = (
             await connection.scalars(
@@ -76,7 +76,12 @@ async def test_constraints_and_historical_departure(host: Host) -> None:
     await host.session.flush()
     host.session.add(Membership(contract_id=second.id, user_id=USER_ID, current_user_id=USER_ID))
     await host.session.flush()
-    assert await host.session.scalar(select(func.count()).select_from(Membership)) == 2
+    assert (
+        await host.session.scalar(
+            select(func.count()).select_from(Membership).where(Membership.user_id == USER_ID)
+        )
+        == 2
+    )
     await host.session.execute(text("SET CONSTRAINTS ext_minishop_corp_current_revision IMMEDIATE"))
 
 
@@ -136,7 +141,12 @@ async def test_native_account_removal_cannot_drop_current_links(
         await host.session.refresh(contract)
         assert contract.manager_user_id == USER_ID
     else:
-        assert await host.session.scalar(select(Membership.current_user_id)) == USER_ID
+        assert (
+            await host.session.scalar(
+                select(Membership.current_user_id).where(Membership.contract_id == contract.id)
+            )
+            == USER_ID
+        )
 
 
 async def test_concurrent_membership_uses_one_account_slot(engine: AsyncEngine) -> None:

@@ -3,6 +3,7 @@
 from aiohttp import web
 
 from .api_contracts import setup_contract_routes
+from .api_invitations import setup_invitation_routes
 from .integration.auth import require_administrator, require_customer
 
 
@@ -26,3 +27,4 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/api/plugins/minishop-corp/status", customer_status)
     app.router.add_get("/api/admin/minishop-corp/status", admin_status)
     setup_contract_routes(app)
+    setup_invitation_routes(app)

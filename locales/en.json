@@ -19,5 +19,11 @@
   "minishop_corp_version_conflict": "The contract terms have changed. Refresh the data before saving.",
   "minishop_corp_contract_missing": "The contract is missing or unavailable.",
   "minishop_corp_invalid_request": "Check the request fields.",
-  "minishop_corp_operation_stale": "The terms or membership have changed. Refresh the data."
+  "minishop_corp_operation_stale": "The terms or membership have changed. Refresh the data.",
+  "minishop_corp_invitation_unavailable": "This code is unavailable. Check it or request a new one from your manager.",
+  "minishop_corp_invitation_missing": "The invitation is missing or unavailable.",
+  "minishop_corp_invitation_exists": "A reusable code already exists. Use the rotation action.",
+  "minishop_corp_contract_expired": "This contract has expired. Renew it first.",
+  "minishop_corp_operation_unresolved": "The operation result is not yet confirmed. Its reservation is retained.",
+  "minishop_corp_code_shown_once": "The code is shown only when issued. If it was not saved, revoke the invitation or rotate the reusable code."
 }
