@@ -6,6 +6,7 @@ import * as admin from "../../frontend/dist/admin/index.js";
 
 function target() {
   const window = new Window();
+  globalThis.window = window;
   globalThis.document = window.document;
   globalThis.HTMLElement = window.HTMLElement;
   globalThis.HTMLInputElement = window.HTMLInputElement;
@@ -20,15 +21,15 @@ test("customer uses scoped host request, supports language changes and cleanup",
   const element = target();
   let signal;
   const props = { language: "ru", host: { version: 1, request: async (path, options) => {
-    assert.equal(path, "/status");
+    assert.ok(["/membership", "/managed-contracts?limit=1"].includes(path));
     signal = options.signal;
-    return { stage: "scaffold" };
+    return path === "/membership" ? { membership: null, last_departure: null } : { contracts: [] };
   } } };
   const view = customer.mountView("corporate-home", element, props);
   assert.equal(element.querySelector("section").getAttribute("aria-busy"), "true");
   await flush();
   assert.match(element.textContent, /Для корпоративных клиентов/);
-  assert.match(element.textContent, /скоро появится/);
+  assert.match(element.textContent, /Проверить код/);
   customer.updateView(view, { ...props, language: "en" });
   assert.match(element.textContent, /For corporate customers/);
   customer.unmountView(view);

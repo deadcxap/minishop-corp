@@ -1,4 +1,4 @@
-import { AdminApi, ApiError } from "./api";
+import { AdminApi, ApiError, type ApiClient } from "./api";
 import { translate, type LocaleKey, adminText, type AdminKey, errorText } from "./i18n";
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string): HTMLElementTagNameMap[K] {
@@ -57,17 +57,20 @@ export abstract class Panel {
   readonly root = el("section", undefined, "corp-panel");
   readonly body = el("div");
   readonly controller = new AbortController();
-  readonly api = new AdminApi(this.controller.signal);
+  readonly api: ApiClient;
   busy = false;
   error: unknown = null;
   notice: LocaleKey | null = null;
   retry: (() => Promise<void>) | null = null;
   changed: () => void = () => {};
-  constructor(public language: string) { this.root.append(this.body); }
+  constructor(public language: string, client: (signal: AbortSignal) => ApiClient = (signal) => new AdminApi(signal)) {
+    this.api = client(this.controller.signal); this.root.append(this.body);
+  }
   get alive(): boolean { return !this.controller.signal.aborted; }
   get confirming(): boolean { return (this.root.closest(".minishop-corp") ?? this.root).querySelector("dialog[open]") !== null; }
   t(key: AdminKey): string { return adminText(this.language, key); }
   abstract render(): void;
+  failed(_error: unknown): void {}
   update(language: string): void { if (this.language !== language) { this.language = language; this.render(); } }
   destroy(): void { this.controller.abort(); this.root.remove(); this.retry = null; }
   async run(task: () => Promise<void>, write = false): Promise<void> {
@@ -76,6 +79,7 @@ export abstract class Panel {
     try { await task(); this.retry = null; }
     catch (error) {
       this.error = error;
+      this.failed(error);
       this.retry = write && (!(error instanceof ApiError) || error.uncertain) ? task : null;
     } finally { this.busy = false; if (this.alive) { this.render(); this.changed(); } }
   }

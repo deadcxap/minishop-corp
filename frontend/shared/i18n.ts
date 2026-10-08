@@ -14,6 +14,10 @@ export type AdminKey = { [K in LocaleKey]: K extends `admin_minishop_corp_${infe
 export function adminText(language: string, key: AdminKey): string {
   return translate(language, `admin_minishop_corp_${key}`);
 }
+export type CustomerKey = { [K in LocaleKey]: K extends `wa_minishop_corp_${infer S}` ? S : never }[LocaleKey];
+export function customerText(language: string, key: CustomerKey): string {
+  return translate(language, `wa_minishop_corp_${key}`);
+}
 export function errorText(language: string, error: unknown): string {
   if (error instanceof ApiError && error.status === 401) return adminText(language, "session_error");
   if (error instanceof ApiError && error.status === 403) return translate(language, "minishop_corp_access_denied");

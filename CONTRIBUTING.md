@@ -58,6 +58,7 @@ Minishop и PostgreSQL с HTTP-двойниками панели и Telegram д�
 [жизненном цикле членства](docs/membership-api.md),
 [общей сверке](docs/reconciliation.md) и [данных участников](docs/members-api.md).
 Административные сценарии UI и их проверки описаны в [S08](docs/admin-ui.md).
+Пользовательские сценарии и кабинет управляющего — в [S09](docs/customer-ui.md).
 
 Для проверки настоящего Minishop:
 

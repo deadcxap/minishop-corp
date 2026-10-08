@@ -3,10 +3,10 @@ import { Panel, button, confirm, date, el } from "../shared/ui";
 import { contract, list, type Contract } from "./data";
 import { Editor } from "./editor";
 import { InvitationsPanel } from "./invitations";
-import { MembersPanel } from "./members";
+import { MembersPanel } from "../shared/member-panel";
 import { SynchronizationPanel } from "./synchronization";
 import "../shared/styles.css";
-import "./styles.css";
+import "../shared/controls.css";
 
 type Tab = "terms" | "members" | "invitations" | "sync";
 const tabs: Tab[] = ["terms", "members", "invitations", "sync"];

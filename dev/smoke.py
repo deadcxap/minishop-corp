@@ -149,6 +149,9 @@ async def main() -> None:
         # The host must advertise the actual signed package on both UI surfaces.
         assert "minishop-corp" in json.dumps(customer)
         assert "minishop-corp" in json.dumps(admin)
+        assert "corporate-card" in json.dumps(customer)
+        assert "corporate-home" in json.dumps(customer)
+        assert "corporate-manager" not in json.dumps(customer)
         state = read_state(package_root())
         digest = state["installations"]["minishop-corp"]["digest"]
         for audience, user_id, prefix in (

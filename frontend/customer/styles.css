@@ -1,0 +1,4 @@
+.minishop-corp.corp-customer { padding: clamp(16px, 3vw, 28px); }
+.minishop-corp .corp-offer { border-color: var(--accent, #2563eb); }
+.minishop-corp .corp-wait { font-variant-numeric: tabular-nums; }
+.minishop-corp .corp-customer-actions { display: flex; flex-wrap: wrap; gap: 10px; }

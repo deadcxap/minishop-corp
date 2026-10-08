@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BACKEND = os.environ.get("CORP_BACKEND_ORIGIN", "http://127.0.0.1:18081")
 ALLOWED = re.compile(
     r"/api/(?:plugins/minishop-corp/status|admin/minishop-corp/status|"
+    r"plugins/minishop-corp/(?:membership|operations/[0-9a-f-]{36}|"
+    r"managed-contracts(?:/[0-9a-f-]{36}(?:/invitations|/members(?:/[0-9a-f-]{36}/avatar)?)?)?)|"
     r"admin/minishop-corp/options/(?:tariffs|squad|accounts)|"
     r"admin/minishop-corp/contracts(?:/[0-9a-f-]{36}(?:/invitations|"
     r"/members(?:/[0-9a-f-]{36}/avatar)?|/synchronization(?:/operations)?)?)?|"

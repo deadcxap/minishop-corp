@@ -3,6 +3,8 @@ export interface CustomerProps {
   host: {
     version: 1;
     request(path: string, options?: RequestInit): Promise<unknown>;
+    navigate(view: string): void;
+    navigateSection(section: string): void;
   };
   language: string;
 }

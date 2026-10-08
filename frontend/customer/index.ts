@@ -1,16 +1,17 @@
 import type { CustomerProps } from "../shared/host";
-import { mountStatus, type ViewInstance } from "../shared/view";
+import { CustomerView } from "./app";
+import { ManagerView } from "./manager";
+type View = CustomerView | ManagerView;
 
-export function mountView(view: string, target: HTMLElement, props: CustomerProps): ViewInstance {
-  if (view !== "corporate-home" || props.host.version !== 1) {
+export function mountView(view: string, target: HTMLElement, props: CustomerProps): View {
+  if (!["corporate-home", "corporate-card", "corporate-manager"].includes(view) || props.host.version !== 1) {
     throw new Error("unsupported_view_or_host");
   }
-  return mountStatus(target, props.language, "customer",
-    (signal) => props.host.request("/status", { signal }));
+  return view === "corporate-manager" ? new ManagerView(target, props) : new CustomerView(target, props);
 }
 
-export function updateView(instance: ViewInstance, props: CustomerProps): void {
-  instance.update(props.language);
+export function updateView(instance: View, props: CustomerProps): void {
+  instance.updateProps(props);
 }
 
-export function unmountView(instance: ViewInstance): void { instance.destroy(); }
+export function unmountView(instance: View): void { instance.destroy(); }

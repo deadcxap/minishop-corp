@@ -1,28 +1,35 @@
-import { ApiError, requestId } from "../shared/api";
-import { translate } from "../shared/i18n";
-import type { CorporateMember, MemberAvatar, Statistic } from "../shared/members";
-import { Panel, button, confirm, el, person } from "../shared/ui";
-import { avatar, contract, list, member, nullable, operation, string, type Contract } from "./data";
+import { ApiError, requestId, object, number, type ApiClient } from "./api";
+import { translate } from "./i18n";
+import type { CorporateMember, MemberAvatar, Statistic } from "./members";
+import { Panel, button, confirm, el, person } from "./ui";
+import { list, nullable, string } from "./api";
+import { avatar, member, operation } from "./members-data";
 
 export class MembersPanel extends Panel {
   rows: CorporateMember[] = []; after: string | null = null; loaded = false;
   avatars = new Map<string, MemberAvatar>(); private loadingAvatars = false; private generation = 0;
   private timer: ReturnType<typeof setInterval>;
-  constructor(language: string, private current: () => Contract) {
-    super(language); void this.run(() => this.load());
+  constructor(language: string, private current: () => { id: string; member_count?: number },
+    private scope: "admin" | "manager" = "admin", client?: (signal: AbortSignal) => ApiClient) {
+    super(language, client); void this.run(() => this.load());
     this.timer = setInterval(() => {
       if (this.root.hidden || document.hidden || this.busy || this.retry || this.confirming || this.rows.length > 25
         || !this.rows.some((row) => row.state === "pending" || row.state === "leaving")) return;
       void this.run(() => this.load());
     }, 10000);
   }
-  get path(): string { return `/contracts/${this.current().id}/members`; }
+  override failed(error: unknown): void {
+    if (error instanceof ApiError && (this.scope === "manager" || [401, 403, 404].includes(error.status))) {
+      this.rows = []; this.avatars.clear(); this.after = null;
+    }
+  }
+  get path(): string { return `/${this.scope === "admin" ? "contracts" : "managed-contracts"}/${this.current().id}/members`; }
   async load(after?: string): Promise<void> {
     const [data, details] = await Promise.all([
       this.api.request(`${this.path}?limit=25${after ? `&after=${after}` : ""}`),
-      this.api.request(`/contracts/${this.current().id}`),
+      this.scope === "admin" ? this.api.request(`/contracts/${this.current().id}`) : Promise.resolve(null),
     ]);
-    this.current().member_count = contract(details.contract).member_count;
+    if (details) this.current().member_count = number(object(details.contract).member_count);
     const page = list(data.members, member); this.after = nullable(data.next_after, string);
     this.rows = after ? [...this.rows, ...page] : page; this.loaded = true; this.generation++;
     void this.loadAvatars();
@@ -41,6 +48,9 @@ export class MembersPanel extends Panel {
           this.avatars.set(row.id, { data_url: null, state: "unavailable", updated_at: null });
           if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
             this.rows = this.rows.filter((item) => item.id !== row.id); this.error = error;
+            if ([401, 403].includes(error.status) || error.code === "minishop_corp_contract_missing") {
+              this.failed(error); this.changed();
+            }
           }
         }
         if (this.alive) this.render();

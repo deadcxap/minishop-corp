@@ -1,6 +1,6 @@
 /** Admin extensions in the pinned host use same-origin cookies and its CSRF cookie. */
 export class ApiError extends Error {
-  constructor(readonly code: string, readonly status = 0) { super(code); }
+  constructor(readonly code: string, readonly status = 0, readonly retryAfter: number | null = null) { super(code); }
   get uncertain(): boolean { return this.status === 0 || this.status >= 500; }
 }
 
@@ -43,7 +43,11 @@ export function choice<T extends string>(value: unknown, choices: readonly T[]):
   return result;
 }
 
-export class AdminApi {
+export interface ApiClient {
+  request(path: string, method?: string, body?: object): Promise<ObjectValue>;
+}
+
+export class AdminApi implements ApiClient {
   constructor(readonly signal: AbortSignal) {}
   async request(path: string, method = "GET", body?: object): Promise<ObjectValue> {
     const headers: Record<string, string> = { Accept: "application/json" };
