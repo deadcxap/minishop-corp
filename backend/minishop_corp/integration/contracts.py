@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..contracts_types import ContractError, ContractTerms
+from ..invitations_types import TariffOffer
 from .access import AccessAdapter
 from .access_types import AccessError
 
@@ -52,6 +53,16 @@ class ContractHost:
     @classmethod
     def from_request(cls, request: web.Request) -> "ContractHost":
         return cls(get_subscription_service(request))
+
+    def describe_tariff(self, key: str) -> TariffOffer:
+        tariff = AccessAdapter(self.service)._period_tariff(key)
+        return TariffOffer(
+            key=tariff.key,
+            names={lang: tariff.name(lang) for lang in ("ru", "en")},
+            traffic_limit_bytes=self.service._traffic_limit_for_period_tariff(tariff),
+            hwid_device_limit=self.service._base_hwid_limit_for_tariff(tariff),
+            traffic_strategy=self.service._period_tariff_traffic_strategy(tariff),
+        )
 
     async def require_account(self, session: AsyncSession, user_id: int) -> None:
         user = await get_user_by_id(session, user_id)

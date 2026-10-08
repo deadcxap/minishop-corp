@@ -25,5 +25,7 @@
   "minishop_corp_invitation_exists": "A reusable code already exists. Use the rotation action.",
   "minishop_corp_contract_expired": "This contract has expired. Renew it first.",
   "minishop_corp_operation_unresolved": "The operation result is not yet confirmed. Its reservation is retained.",
-  "minishop_corp_code_shown_once": "The code is shown only when issued. If it was not saved, revoke the invitation or rotate the reusable code."
+  "minishop_corp_code_shown_once": "The code is shown only when issued. If it was not saved, revoke the invitation or rotate the reusable code.",
+  "minishop_corp_code_throttled": "Too many attempts. Try again after the indicated delay.",
+  "minishop_corp_offer_changed": "The invitation terms have changed. Review the offer again."
 }

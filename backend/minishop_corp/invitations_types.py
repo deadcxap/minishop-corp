@@ -58,6 +58,22 @@ class InvitationOffer(BaseModel):
     contract: ContractSummary
 
 
+class OfferReference(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    invitation_id: UUID
+    contract_id: UUID
+    contract_version: int = Field(strict=True, gt=0)
+
+
+class TariffOffer(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    key: str
+    names: dict[str, str]
+    traffic_limit_bytes: int | None
+    hwid_device_limit: int | None
+    traffic_strategy: str
+
+
 def new_code() -> SecretStr:
     return SecretStr("CORP-" + secrets.token_hex(16).upper())
 
