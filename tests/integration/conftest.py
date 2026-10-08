@@ -12,6 +12,9 @@ from bot.services.subscription_service import SubscriptionService
 from config.settings import Settings
 from db import database_setup
 from db.dal import user_dal
+from db.migrator.engine import run_migration_chains
+from minishop_corp import plugin
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from .panel import Panel
@@ -51,6 +54,23 @@ async def engine() -> AsyncIterator[AsyncEngine]:
     try:
         await database_setup.init_db(settings, factory)
         assert database_setup.async_engine is not None
+        # The host runner must roll back both DDL and revision tracking together.
+        async with database_setup.async_engine.connect() as connection:
+            transaction = await connection.begin()
+            await connection.run_sync(
+                lambda sync: run_migration_chains(sync, {plugin.name: plugin.migrations()})
+            )
+            await transaction.rollback()
+            assert (
+                await connection.scalar(text("SELECT to_regclass('ext_minishop_corp_contracts')"))
+                is None
+            )
+            await connection.rollback()
+        async with database_setup.async_engine.begin() as connection:
+            for _ in range(2):
+                await connection.run_sync(
+                    lambda sync: run_migration_chains(sync, {plugin.name: plugin.migrations()})
+                )
         yield database_setup.async_engine
     finally:
         if database_setup.async_engine is not None:

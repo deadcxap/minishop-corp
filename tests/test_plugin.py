@@ -31,7 +31,7 @@ def test_installed_entry_point_and_noop_hooks(context: PluginContext) -> None:
     assert isinstance(loaded, Plugin)
     assert loaded is plugin
     assert plugin.worker_tasks(context) == []
-    assert list(plugin.migrations()) == []
+    assert [item.id for item in plugin.migrations()] == ["minishop-corp.0001_initial"]
 
 
 def test_locales_have_identical_keys_and_no_empty_values() -> None:
