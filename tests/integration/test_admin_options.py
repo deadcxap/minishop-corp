@@ -16,7 +16,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="session")
 BASE = "/api/admin/minishop-corp/options/"
 
 
-@pytest.mark.parametrize("path", ["tariffs", "accounts", "squad?uuid=" + EXTERNAL_SQUAD])
+@pytest.mark.parametrize("path", ["context", "tariffs", "accounts", "squad?uuid=" + EXTERNAL_SQUAD])
 async def test_choices_require_current_global_admin(
     client: TestClient, host: Host, path: str
 ) -> None:
@@ -127,3 +127,14 @@ async def test_contract_counts_include_current_only_without_remote_reads(
         rows = [result["contract"]] if suffix else result["contracts"]
         assert rows[0]["member_count"] == 1
     assert not host.panel.requests
+
+
+async def test_draft_context_exposes_only_current_admin_identity(
+    client: TestClient, host: Host
+) -> None:
+    response = await client.get(BASE + "context", headers=authorization(host))
+    assert response.status == 200
+    assert await response.json() == {"ok": True, "actor_user_id": USER_ID}
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert not host.panel.requests
+    assert (await client.get(BASE + "context?user_id=1", headers=authorization(host))).status == 400

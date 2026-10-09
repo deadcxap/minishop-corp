@@ -70,5 +70,29 @@ export async function adminCases(browser) {
     assert.equal(api.contracts.length, 2); assert.equal(api.contracts[1].ends_at, "2031-12-16T00:00:00.000Z");
     assert.deepEqual(errors, []); await fit(); await page.close(); passed++;
   }
+  for (const [timezoneId, day, expiry] of [
+    ["Europe/Moscow", "2031-10-31", "2031-10-31T21:00:00.000Z"],
+    ["America/New_York", "2026-03-08", "2026-03-09T04:00:00.000Z"],
+    ["America/New_York", "2026-11-01", "2026-11-02T05:00:00.000Z"],
+  ]) {
+    const page = await browser.newPage({ timezoneId }), api = fixture();
+    await page.route("**/api/admin/minishop-corp/**", async (route) => {
+      const req = route.request(), result = api.respond(req.url(), req.method(), req.method() === "GET" ? undefined : req.postDataJSON());
+      await route.fulfill({ status: result.status, contentType: "application/json", body: JSON.stringify(result.payload) });
+    });
+    await page.goto(`${process.env.CORP_PREVIEW_URL}/?audience=admin&language=en`);
+    await page.getByRole("button", { name: "Create contract", exact: true }).click();
+    await page.locator('[name="name"]').fill("Calendar fixture");
+    await page.locator('[name="tariff"]').selectOption("corp");
+    await page.locator('[name="ends_at"]').fill(day);
+    await page.locator('[name="manager"]').fill("910011");
+    await page.getByRole("button", { name: "Find account", exact: true }).click();
+    await page.getByRole("button", { name: "Confirm manager", exact: true }).click();
+    assert.ok((await page.locator(".minishop-corp").innerText()).includes(timezoneId));
+    const reply = page.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith("/contracts"));
+    await page.getByRole("button", { name: "Save", exact: true }).click(); await reply;
+    assert.equal(api.contracts[1].ends_at, expiry);
+    await page.close(); passed++;
+  }
   return passed;
 }

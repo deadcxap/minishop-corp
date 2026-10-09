@@ -9,7 +9,7 @@ const available = (value) => ({ value, state: "available" });
 const unknown = { value: null, state: "unavailable" };
 export function fixture() {
   const state = {
-    calls: [], loseNextWrite: false, failList: false, pending: false,
+    calls: [], actorUserId: 910001, loseNextWrite: false, failList: false, pending: false,
     contracts: [{ id: CONTRACT_ID, name: "Fixture organization — a long name for responsive contract management", tariff_key: "corp",
       external_squad_uuid: SQUAD_ID, manager_user_id: 910011, ends_at: "2030-10-01T12:42:23.123Z", version: 1, expired: false, member_count: 2 }],
     invitations: [],
@@ -28,6 +28,7 @@ export function fixture() {
     const url = new URL(path, "https://fixture.invalid");
     const p = url.pathname.replace("/api/admin/minishop-corp", "");
     state.calls.push({ path: p, method, body, search: url.search });
+    if (p === "/options/context") return ok({ actor_user_id: state.actorUserId });
     if (p === "/options/tariffs") return ok({ tariffs: [
       { key: "personal", names: { ru: "Личный", en: "Personal" }, hidden: false },
       { key: "corp", names: { ru: "Корпоративный", en: "Corporate" }, hidden: true },

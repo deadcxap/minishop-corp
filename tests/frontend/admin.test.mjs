@@ -205,3 +205,89 @@ test("editing another field preserves a legacy exact expiry until the date is ex
   fill("ends_at", "2031-10-15"); await submit(); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.contracts[0].ends_at, "2031-10-16T00:00:00.000Z");
 });
+
+test("host remount restores every form field and the stable creation ID without account enumeration", async (context) => {
+  const { api, target, view, click, fill } = setup(context); await flush(); await click("Create contract");
+  fill("name", "Draft after remount"); fill("tariff", "corp"); fill("ends_at", "2032-02-29"); fill("squad", SQUAD_ID);
+  fill("manager", "@fixture_manager"); await click("Find account"); await click("Confirm manager");
+  const id = view.panels.get("terms").id;
+  admin.unmountView(view);
+  const next = admin.mountView("corporate-contracts", target, { currentLang: "ru" }); context.after(() => admin.unmountView(next)); await flush();
+  for (const [name, value] of [["name", "Draft after remount"], ["tariff", "corp"], ["ends_at", "2032-02-29"], ["squad", SQUAD_ID], ["manager", "@fixture_manager"]]) {
+    assert.equal(target.querySelector(`[name="${name}"]`).value, value);
+  }
+  assert.equal(next.panels.get("terms").id, id);
+  assert.equal(next.panels.get("terms").managerId, 910011);
+  assert.ok(!api.calls.some((v) => v.path === "/options/accounts" && !new URLSearchParams(v.search).get("q")));
+});
+
+test("remount keeps the active contract tab and refuses to overwrite a newer saved revision", async (context) => {
+  const { api, target, view, click, fill, submit, open } = setup(context); await open();
+  fill("name", "Draft kept on terms"); await click("Synchronization");
+  admin.unmountView(view);
+  api.contracts[0].version++; api.contracts[0].name = "Another administrator's change";
+  const next = admin.mountView("corporate-contracts", target, { currentLang: "en" }); context.after(() => admin.unmountView(next)); await flush();
+  assert.equal(target.querySelector('#corp-tab-sync').getAttribute("aria-selected"), "true");
+  await click("Terms"); assert.equal(target.querySelector('[name="name"]').value, "Draft kept on terms");
+  await submit(); await click("Confirm", target.querySelector("dialog"));
+  assert.match(target.textContent, /terms have changed/);
+  assert.equal(api.contracts[0].name, "Another administrator's change");
+});
+
+test("a lost create response survives remount and can only repeat its original payload", async (context) => {
+  const { api, target, view, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  fill("name", "Pending creation"); fill("tariff", "corp"); fill("manager", "910011"); await click("Find account"); await click("Confirm manager");
+  api.loseNextWrite = true; await submit();
+  const first = api.calls.find((v) => v.method === "POST").body;
+  admin.unmountView(view);
+  const next = admin.mountView("corporate-contracts", target, { currentLang: "en" }); context.after(() => admin.unmountView(next)); await flush();
+  assert.match(target.textContent, /request may have completed/i);
+  await click("Retry the same request");
+  assert.deepEqual(api.calls.filter((v) => v.method === "POST").map((v) => v.body), [first, first]);
+  assert.equal(api.contracts.length, 2);
+  const stored = JSON.parse(document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1"));
+  assert.equal(stored.editor, null);
+});
+
+test("drafts are not restored for another administrator or after explicit discard", async (context) => {
+  const { api, target, view, click, fill } = setup(context); await flush(); await click("Create contract");
+  fill("name", "Private draft"); admin.unmountView(view); api.actorUserId++;
+  const next = admin.mountView("corporate-contracts", target, { currentLang: "en" }); context.after(() => admin.unmountView(next)); await flush();
+  assert.equal(target.querySelector('[name="name"]'), null); assert.doesNotMatch(target.textContent, /Private draft/);
+  await click("Create contract"); fill("name", "Discard me"); await click("Back to contracts"); await click("Confirm", target.querySelector("dialog"));
+  assert.equal(document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1"), null);
+});
+
+test("invitation secrets never enter the form draft, and revoked permissions clear it", async (context) => {
+  const { api, target, click, submit, open } = setup(context); await open(); await click("Invitations"); await submit();
+  const secret = target.querySelector('[name="code"]').value;
+  assert.ok(!document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1").includes(secret));
+  await click("Back to contracts"); api.failList = true; await click("Refresh");
+  assert.equal(document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1"), null);
+});
+
+test("an unfinished replacement-manager search survives remount for an orphaned contract", async (context) => {
+  const { api, target, view, fill, open } = setup(context); api.contracts[0].manager_user_id = null; await open();
+  fill("manager", "unfinished@example.invalid"); admin.unmountView(view);
+  const next = admin.mountView("corporate-contracts", target, { currentLang: "en" }); context.after(() => admin.unmountView(next)); await flush();
+  assert.equal(target.querySelector('[name="manager"]').value, "unfinished@example.invalid");
+  assert.equal(next.panels.get("terms").managerId, null);
+});
+
+test("disposing an older host view cannot erase the replacement view's draft", async (context) => {
+  const { target, view, click, fill } = setup(context); await flush();
+  const replacementTarget = document.createElement("main"); target.after(replacementTarget);
+  const next = admin.mountView("corporate-contracts", replacementTarget, { currentLang: "en" }); context.after(() => admin.unmountView(next)); await flush();
+  await click("Create contract", replacementTarget);
+  const field = replacementTarget.querySelector('[name="name"]'); field.value = "Newest view";
+  field.dispatchEvent(new document.defaultView.Event("input", { bubbles: true }));
+  admin.unmountView(view);
+  const record = JSON.parse(document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1"));
+  assert.equal(record.editor.name, "Newest view");
+  // Simulate a backwards clock correction between save and restoration.
+  record.updated = Date.now() + 60_000;
+  document.defaultView.sessionStorage.setItem("minishop-corp.admin-draft.v1", JSON.stringify(record));
+  const thirdTarget = document.createElement("main"); target.after(thirdTarget);
+  const third = admin.mountView("corporate-contracts", thirdTarget, { currentLang: "en" }); context.after(() => admin.unmountView(third)); await flush();
+  assert.equal(thirdTarget.querySelector('[name="name"]').value, "Newest view");
+});

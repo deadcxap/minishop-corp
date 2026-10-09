@@ -17,12 +17,14 @@ async def options(request: web.Request) -> web.Response:
         await host.require_admin(actor.session, actor.user_id)
         service = AdminOptions(host)
         kind = request.match_info["kind"]
-        if kind == "tariffs":
+        if kind in {"tariffs", "context"}:
             if request.query:
                 raise ContractError("minishop_corp_invalid_request", 400)
-            payload: dict[str, object] = {
-                "tariffs": [row.model_dump(mode="json") for row in service.tariffs()]
-            }
+            payload: dict[str, object] = (
+                {"actor_user_id": actor.user_id}
+                if kind == "context"
+                else {"tariffs": [row.model_dump(mode="json") for row in service.tariffs()]}
+            )
         elif kind == "squad":
             query = SquadQuery.model_validate(dict(request.query))
             payload = {"squad": (await service.squad(query.uuid)).model_dump(mode="json")}
@@ -35,4 +37,6 @@ async def options(request: web.Request) -> web.Response:
 
 
 def setup_admin_option_routes(app: web.Application) -> None:
-    app.router.add_get("/api/admin/minishop-corp/options/{kind:tariffs|squad|accounts}", options)
+    app.router.add_get(
+        "/api/admin/minishop-corp/options/{kind:tariffs|squad|accounts|context}", options
+    )

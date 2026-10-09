@@ -4,6 +4,7 @@ import { Panel, button, confirm, date, el, field, input, person, select } from "
 import { account, contract, list, sameTerms, squad, tariff, terms,
   type Account, type Contract, type Squad, type Tariff, type Terms } from "./data";
 import { addPeriod, calendarDay, endOfDay, expiryDay } from "./calendar";
+import type { EditorDraft, Submission } from "./draft";
 
 const periods: [AdminKey, number, number][] = [
   ["add_day", 1, 0], ["add_week", 7, 0], ["add_month", 0, 1],
@@ -19,13 +20,29 @@ export class Editor extends Panel {
   tariffs: Tariff[] = []; selected: Account | null = null; candidate: Account | null = null;
   verified: Squad | null = null; query = ""; searched = false;
   loaded = false;
-  constructor(language: string, current: Contract | null, private saved: (value: Contract) => void) {
-    super(language); this.original = current; this.id = current?.id ?? requestId();
+  pending: Submission | null = null;
+  constructor(language: string, current: Contract | null, private saved: (value: Contract) => void, draft: EditorDraft | null = null) {
+    super(language); this.original = current; this.id = draft?.id ?? current?.id ?? requestId();
     this.name = current?.name ?? ""; this.tariffKey = current?.tariff_key ?? "";
-    this.end = current ? expiryDay(current.ends_at) : calendarDay(); this.initialEnd = this.end;
+    this.end = current ? expiryDay(current.ends_at) : calendarDay(); this.initialEnd = draft?.initialEnd ?? this.end;
     this.managerId = current?.manager_user_id ?? null; this.squadId = current?.external_squad_uuid ?? "";
     this.query = this.managerId === null ? "" : String(this.managerId);
-    void this.run(() => this.load());
+    if (draft) {
+      this.original = draft.original; this.name = draft.name; this.tariffKey = draft.tariffKey;
+      this.end = draft.end; this.endTouched = draft.endTouched; this.managerId = draft.managerId;
+      this.squadId = draft.squadId; this.query = draft.query; this.pending = draft.pending;
+    }
+    void this.run(() => this.load()).then(() => {
+      const pending = this.pending;
+      if (this.alive && pending) {
+        this.retry = () => this.deliver(pending); this.render(); this.changed();
+      }
+    });
+  }
+  snapshot(): EditorDraft {
+    return { id: this.id, original: this.original, name: this.name, tariffKey: this.tariffKey,
+      end: this.end, initialEnd: this.initialEnd, endTouched: this.endTouched,
+      managerId: this.managerId, squadId: this.squadId, query: this.query, pending: this.pending };
   }
   async load(): Promise<void> {
     this.tariffs = list((await this.api.request("/options/tariffs")).tariffs, tariff);
@@ -34,13 +51,15 @@ export class Editor extends Panel {
       this.selected = list(result.accounts, account).find((row) => row.user_id === this.managerId) ?? null;
     }
     this.loaded = true;
-    if (this.squadId && !this.verified) this.verified = squad((await this.api.request(`/options/squad?uuid=${encodeURIComponent(this.squadId)}`)).squad);
+    if (/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(this.squadId) && !this.verified) {
+      this.verified = squad((await this.api.request(`/options/squad?uuid=${encodeURIComponent(this.squadId)}`)).squad);
+    }
   }
   expiry(): string { return this.original && !this.endTouched ? this.original.ends_at : endOfDay(this.end); }
   dirty(): boolean {
     const old = this.original;
     return old ? this.name !== old.name || this.tariffKey !== old.tariff_key || this.squadId !== (old.external_squad_uuid ?? "")
-      || this.managerId !== old.manager_user_id || this.endTouched
+      || this.managerId !== old.manager_user_id || this.query !== (old.manager_user_id === null ? "" : String(old.manager_user_id)) || this.endTouched
       : Boolean(this.name || this.tariffKey || this.managerId || this.squadId || this.query || this.end !== this.initialEnd);
   }
   async search(): Promise<void> {
@@ -59,8 +78,13 @@ export class Editor extends Panel {
     const draft: Terms = { name: this.name.trim(), tariff_key: this.tariffKey, external_squad_uuid: this.squadId || null,
       ends_at: expiry, manager_user_id: this.managerId };
     if (this.original && !await confirm(this.root, this.t("confirm_terms"), `${this.t("confirm_terms_hint")}\n${draft.name} · ${draft.tariff_key} · ${date(draft.ends_at, this.language)}`, this.language, this.controller.signal)) return;
-    const previous = this.original;
-    await this.run(async () => {
+    const submission: Submission = { terms: draft, previous: this.original };
+    this.pending = submission; this.changed();
+    await this.run(() => this.deliver(submission), true);
+  }
+  async deliver(submission: Submission): Promise<void> {
+    const { terms: draft, previous } = submission;
+    try {
       let result: Contract;
       try {
         result = contract((await this.api.request(previous ? `/contracts/${this.id}` : "/contracts", previous ? "PUT" : "POST",
@@ -74,9 +98,14 @@ export class Editor extends Panel {
       this.original = result; this.name = result.name; this.tariffKey = result.tariff_key;
       this.end = expiryDay(result.ends_at); this.endTouched = false;
       this.managerId = result.manager_user_id; this.squadId = result.external_squad_uuid ?? "";
+      this.query = this.managerId === null ? "" : String(this.managerId);
+      this.pending = null;
       this.notice = "admin_minishop_corp_saved";
       if (this.alive) this.saved(result);
-    }, true);
+    } catch (error) {
+      if (error instanceof ApiError && !error.uncertain) this.pending = null;
+      throw error;
+    }
   }
   render(): void {
     this.paint((body) => {

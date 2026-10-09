@@ -1,5 +1,9 @@
 # Overlay generated inside minishop-corp; the neighboring core remains read-only.
 services:
   backend:
+    environment:
+      # Eight isolated browser accounts share one container IP and repeatedly
+      # reload the full shell. Keep this test traffic below the native IP quota.
+      WEBAPP_RATE_LIMIT_MAX_REQUESTS: "1000"
     volumes:
       - ../.local/core-ui/backend/bot/app/web/templates:/minishop/backend/bot/app/web/templates:ro

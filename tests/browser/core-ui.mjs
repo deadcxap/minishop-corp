@@ -38,6 +38,46 @@ try {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         await page.locator('.minishop-corp').first().scrollIntoViewIfNeeded();
         await page.screenshot({ path: `.local/screenshots/core-${audience}-${language}-${width}.png` });
+        if (audience === "admin") {
+          await page.getByRole("button", { name: label, exact: true }).click();
+          const name = page.locator('.minishop-corp [name="name"]');
+          await name.waitFor();
+          await name.fill("Full-shell retained draft");
+          const plans = await page.locator('[name="tariff"] option').evaluateAll((rows) => rows.map((row) => row.value).filter(Boolean));
+          if (plans[0]) await page.locator('[name="tariff"]').selectOption(plans[0]);
+          await page.locator('[name="ends_at"]').fill("2031-10-31");
+          await page.locator('[name="manager"]').fill("manager@example.invalid");
+          await page.clock.setFixedTime(new Date(Date.now() + 20_000));
+          const fresh = page.waitForResponse((reply) => new URL(reply.url()).pathname.endsWith("/me") && new URL(reply.url()).searchParams.has("fresh"));
+          await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+          await fresh;
+          assert.equal(await name.inputValue(), "Full-shell retained draft");
+          // The user's deep URL and a real browser reload must preserve the draft.
+          await page.goto(base + "/admin/corporate-contracts?plugin=minishop-corp&tab=operations");
+          await name.waitFor();
+          assert.equal(await name.inputValue(), "Full-shell retained draft");
+          await page.reload();
+          try {
+            await name.waitFor();
+          }
+          catch (error) {
+            await page.screenshot({ path: `.local/screenshots/core-draft-failed-${language}-${width}.png`, fullPage: true });
+            console.error({ errors, content: (await page.locator('body').innerText()).slice(0, 1600), draft: await page.evaluate(() => sessionStorage.getItem("minishop-corp.admin-draft.v1")) });
+            throw error;
+          }
+          assert.equal(await name.inputValue(), "Full-shell retained draft");
+          assert.equal(await page.locator('[name="ends_at"]').inputValue(), "2031-10-31");
+          assert.equal(await page.locator('[name="manager"]').inputValue(), "manager@example.invalid");
+          if (width === 1280) {
+            await page.locator('[data-admin-section="users"]').click();
+            await page.locator('[data-admin-section="corporate-contracts"]').click();
+            await name.waitFor();
+            assert.equal(await name.inputValue(), "Full-shell retained draft");
+          }
+          await page.waitForFunction(() => !document.querySelector('.minishop-corp[aria-busy="true"], .minishop-corp [aria-busy="true"]'));
+          assert.deepEqual(errors, []);
+          await page.screenshot({ path: `.local/screenshots/core-draft-${language}-${width}.png`, fullPage: true });
+        }
         if (audience === "customer") {
           const code = "CORP-" + "0".repeat(32); // Explicitly invalid synthetic code.
           let previews = 0;
@@ -66,6 +106,7 @@ try {
           assert.deepEqual(errors, []);
         }
         await context.close();
+        console.log(`PASS: full shell ${audience}/${language}/${width}`);
         passed++;
       }
     }

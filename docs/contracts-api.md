@@ -14,6 +14,7 @@
 | --- | --- |
 | `tariffs` | `tariffs`: period-тарифы из настроек Minishop, названия RU/EN, лимиты и `hidden`; секрет скрытого тарифа не выдаётся |
 | `squad?uuid=<UUID>` | `squad`: подтверждённые Minishop UUID и имя внешнего сквада |
+| `context` | `actor_user_id`: текущий администратор для изоляции черновика формы; запрос без параметров |
 | `accounts?q=<ID, username или email>` | `accounts`: не более одного профиля, `next_page: null` |
 
 Пустой поиск возвращает пустой список. Только точный внутренний ID, username

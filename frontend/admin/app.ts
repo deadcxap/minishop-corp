@@ -1,23 +1,65 @@
 import { translate } from "../shared/i18n";
+import { ApiError, number } from "../shared/api";
 import { Panel, button, confirm, date, el } from "../shared/ui";
 import { contract, list, type Contract } from "./data";
 import { Editor } from "./editor";
 import { InvitationsPanel } from "./invitations";
 import { MembersPanel } from "../shared/member-panel";
 import { SynchronizationPanel } from "./synchronization";
+import { DraftStore, type EditorDraft, type Tab } from "./draft";
 import "../shared/styles.css";
 import "../shared/controls.css";
 
-type Tab = "terms" | "members" | "invitations" | "sync";
 const tabs: Tab[] = ["terms", "members", "invitations", "sync"];
 
 export class AdminView extends Panel {
   rows: Contract[] = []; after: string | null = null; loaded = false;
   mode: "list" | "new" | "detail" = "list"; current: Contract | null = null; tab: Tab = "terms";
   panels = new Map<Tab, Panel>();
+  drafts: DraftStore | null = null;
+  restoredEditor: EditorDraft | null = null;
+  initialized = false;
   constructor(target: HTMLElement, language: string) {
     super(language); this.root.className = "minishop-corp corp-admin"; target.append(this.root);
-    void this.run(() => this.load());
+    for (const event of ["input", "change", "click"]) this.root.addEventListener(event, () => this.persist(), { signal: this.controller.signal });
+    void this.run(() => this.initialize());
+  }
+  async initialize(): Promise<void> {
+    const context = await this.api.request("/options/context");
+    if (!this.alive) return;
+    this.drafts = new DraftStore(number(context.actor_user_id));
+    const state = this.drafts.read();
+    await this.load();
+    if (state && this.alive) {
+      if (state.contractId) {
+        try { this.current = contract((await this.api.request(`/contracts/${encodeURIComponent(state.contractId)}`)).contract); }
+        catch (error) {
+          if (!(error instanceof ApiError) || error.status !== 404) throw error;
+          this.drafts.clear(); this.initialized = true; return;
+        }
+        this.mode = "detail";
+      } else if (state.editor) this.mode = "new";
+      if (this.mode !== "list") {
+        this.restoredEditor = state.editor; this.panel("terms");
+        this.tab = this.mode === "new" ? "terms" : state.tab; this.panel(this.tab);
+      }
+    }
+    this.initialized = true;
+  }
+  persist(): void {
+    if (!this.initialized || !this.drafts || !this.alive) return;
+    if (this.mode === "list") { this.drafts.clear(); return; }
+    const editor = this.panels.get("terms");
+    this.drafts.write({ contractId: this.current?.id ?? null, tab: this.tab,
+      editor: editor instanceof Editor && (this.mode === "new" || editor.dirty() || editor.pending) ? editor.snapshot() : null });
+  }
+  override failed(error: unknown): void {
+    if (!this.alive) return;
+    if (error instanceof ApiError && [401, 403].includes(error.status)) {
+      (this.drafts ?? new DraftStore(0)).clear(); this.clearPanels();
+      this.current = null; this.mode = "list"; this.rows = []; this.loaded = true; this.error = error;
+      this.render();
+    }
   }
   get locked(): boolean { return this.busy || Boolean(this.retry) || [...this.panels.values()].some((panel) => panel.busy || panel.retry); }
   async load(after?: string): Promise<void> {
@@ -51,9 +93,11 @@ export class AdminView extends Panel {
       this.current = value; this.mode = "detail";
       this.rows = this.rows.map((row) => row.id === value.id ? value : row);
       this.render();
-    }) : tab === "members" ? new MembersPanel(this.language, current)
+    }, this.restoredEditor) : tab === "members" ? new MembersPanel(this.language, current)
       : tab === "invitations" ? new InvitationsPanel(this.language, current)
         : new SynchronizationPanel(this.language, current);
+    if (tab === "terms") this.restoredEditor = null;
+    panel.failed = (error) => this.failed(error);
     panel.root.id = `corp-panel-${tab}`; panel.root.setAttribute("role", "tabpanel");
     panel.root.setAttribute("aria-labelledby", `corp-tab-${tab}`);
     panel.changed = () => { if (this.alive) this.render(); };
@@ -72,7 +116,7 @@ export class AdminView extends Panel {
       if (this.mode === "list") {
         title.append(el("p", this.t("subtitle")));
         heading.append(button(this.t("new_contract"), () => { void this.open(null); }, "corp-primary")); body.append(heading);
-        body.append(button(this.t("refresh"), () => { void this.run(() => this.load()); }));
+        body.append(button(this.t("refresh"), () => { void this.run(() => this.initialized ? this.load() : this.initialize()); }));
         if (!this.loaded) body.append(el("p", translate(this.language, "wa_minishop_corp_loading")));
         else if (!this.rows.length) {
           const empty = el("p", this.t("empty_contracts"), "corp-empty"); empty.setAttribute("role", "status"); body.append(empty);
@@ -117,7 +161,8 @@ export class AdminView extends Panel {
         body.append(node);
       }
     });
+    this.persist();
   }
   override update(language: string): void { super.update(language); this.panels.forEach((panel) => panel.update(language)); }
-  override destroy(): void { this.clearPanels(); super.destroy(); }
+  override destroy(): void { this.persist(); this.clearPanels(); super.destroy(); }
 }

@@ -54,9 +54,9 @@ test("failed request gives a localized message and leaves the host DOM alone", a
 test("admin uses its own authenticated endpoint", async (context) => {
   const element = target();
   context.mock.method(globalThis, "fetch", async (path, options) => {
-    assert.equal(path, "/api/admin/minishop-corp/contracts?limit=25");
+    assert.ok(["/api/admin/minishop-corp/contracts?limit=25", "/api/admin/minishop-corp/options/context"].includes(path));
     assert.equal(options.credentials, "same-origin");
-    return Response.json({ ok: true, contracts: [] });
+    return Response.json({ ok: true, contracts: [], actor_user_id: 910001 });
   });
   const view = admin.mountView("corporate-contracts", element, { currentLang: "en" });
   await flush();

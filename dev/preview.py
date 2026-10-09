@@ -15,7 +15,7 @@ ALLOWED = re.compile(
     r"/api/(?:plugins/minishop-corp/status|admin/minishop-corp/status|"
     r"plugins/minishop-corp/(?:membership|operations/[0-9a-f-]{36}|"
     r"managed-contracts(?:/[0-9a-f-]{36}(?:/invitations|/members(?:/[0-9a-f-]{36}/avatar)?)?)?)|"
-    r"admin/minishop-corp/options/(?:tariffs|squad|accounts)|"
+    r"admin/minishop-corp/options/(?:tariffs|squad|accounts|context)|"
     r"admin/minishop-corp/contracts(?:/[0-9a-f-]{36}(?:/invitations|"
     r"/members(?:/[0-9a-f-]{36}/avatar)?|/synchronization(?:/operations)?)?)?|"
     r"extensions/runtime|admin/plugins/runtime|"
