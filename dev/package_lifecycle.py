@@ -53,7 +53,10 @@ async def main() -> None:
         await grant_role(session, ACTOR, "admin", source="corp_package_fixture")
     headers = {"Authorization": f"Bearer {create_webapp_session_token(settings, ACTOR)}"}
     async with aiohttp.ClientSession(
-        headers=headers, timeout=aiohttp.ClientTimeout(total=15)
+        headers=headers,
+        timeout=aiohttp.ClientTimeout(total=15),
+        # Each mutation can restart the server; never reuse a previous generation's socket.
+        connector=aiohttp.TCPConnector(force_close=True),
     ) as http:
 
         async def post(path: str, body: object) -> dict[str, object]:
@@ -74,25 +77,50 @@ async def main() -> None:
             async with http.get(BASE + "/api/admin/minishop-corp/contracts") as response:
                 assert response.status == (200 if enabled else 404), await response.text()
 
+        async def restart_post(path: str, body: dict[str, object], action: str) -> None:
+            try:
+                await post(path, body)
+            except (aiohttp.ServerDisconnectedError, aiohttp.ClientPayloadError):
+                # The launcher may stop the old backend after the mutation commits,
+                # before its HTTP response arrives. Do not replay a mutation blindly.
+                state = read_state(package_root())
+                generation = body["generation"]
+                assert isinstance(generation, int)
+                assert state["generation"] == generation + 1, "Mutation was not committed"
+                operation = state["operations"][-1]
+                assert operation["actor"] == ACTOR and operation["plugin"] == "minishop-corp"
+                assert operation["action"] == action
+                if action == "install":
+                    assert operation["id"] == body["operation_id"]
+                    assert operation["digest"] == body["digest"]
+                    assert operation["status"] == "completed"
+                print(f"HTTP response lost during restart; native state confirms {action}")
+            await ready()
+
         async def install(body: bytes) -> str:
             staged = await upload("/api/admin/plugins/stage", body)
-            await post(
+            await restart_post(
                 "/api/admin/plugins/install",
                 {
                     "operation_id": staged["operation_id"],
                     "digest": staged["digest"],
                     "generation": read_state(package_root())["generation"],
                 },
+                "install",
             )
-            await ready()
+            assert (
+                read_state(package_root())["installations"]["minishop-corp"]["digest"]
+                == staged["digest"]
+            )
             return str(staged["digest"])
 
         async def enabled(value: bool) -> None:
-            await post(
+            await restart_post(
                 "/api/admin/plugins/minishop-corp/enabled",
                 {"enabled": value, "generation": read_state(package_root())["generation"]},
+                "enable" if value else "disable",
             )
-            await ready()
+            assert read_state(package_root())["installations"]["minishop-corp"]["enabled"] is value
             await present(value)
 
         index = json.loads(
@@ -210,11 +238,11 @@ async def main() -> None:
         assert await snapshot() == before
         print("PASS: synthetic version upgrade, repeat install and candidate restore preserve data")
         await enabled(False)
-        await post(
+        await restart_post(
             "/api/admin/plugins/minishop-corp/remove",
             {"generation": read_state(package_root())["generation"]},
+            "remove",
         )
-        await ready()
         assert not read_state(package_root())["installations"]
         assert await snapshot() == before
         assert await install(archive) == original
