@@ -82,15 +82,12 @@ export class MembersPanel extends Panel {
     }
     const node = el("span", text, `corp-metric-value corp-${value.state}`);
     node.title = translate(this.language, `wa_minishop_corp_data_${value.state}`);
-    if (value.state === "stored" || value.state === "stale") node.append(el("small", node.title));
     return node;
   }
   render(): void {
     this.paint((body) => {
       const actions = el("div", undefined, "corp-actions");
-      actions.append(button(this.t("refresh"), () => { void this.run(() => this.load()); }), button(this.t("avatar_retry"), () => {
-        if (!this.loadingAvatars) { this.avatars.clear(); void this.loadAvatars(); }
-      })); body.append(actions);
+      actions.append(button(this.t("refresh"), () => { void this.run(() => this.load()); })); body.append(actions);
       if (!this.loaded) body.append(el("p", translate(this.language, "wa_minishop_corp_loading")));
       else if (!this.rows.length) body.append(el("p", this.t("empty_members"), "corp-empty"));
       for (const row of this.rows) {

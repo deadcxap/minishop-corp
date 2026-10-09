@@ -1,9 +1,11 @@
 .minishop-corp.corp-customer { padding: clamp(16px, 3vw, 28px); }
 .minishop-corp .corp-offer { border-color: var(--accent, #2563eb); }
 .minishop-corp .corp-customer-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.minishop-corp.corp-settings-tile { padding: 0; }
-.minishop-corp .corp-settings-button { width: 100%; border: 0; border-radius: inherit; background: transparent; padding: 18px; display: flex; gap: 14px; align-items: center; text-align: left; color: inherit; }
-.minishop-corp .corp-settings-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px; background: var(--surface, #f1f5f9); color: var(--accent, #2563eb); font-size: 26px; }
-.minishop-corp .corp-settings-text { display: grid; gap: 4px; min-width: 0; }
-.minishop-corp .corp-settings-text small { color: var(--muted, #596579); font-size: .8rem; line-height: 1.4; }
-.minishop-corp .corp-settings-arrow { margin-left: auto; color: var(--muted, #596579); font-size: 26px; }
+.minishop-corp.corp-settings-tile { padding: 0; border: 0; background: transparent; }
+/* Native Settings rows in Minishop 3.8.1; no selectors or mutations outside our root. */
+.minishop-corp .corp-settings-button { box-sizing: border-box; width: 100%; min-height: 50px; padding: 9px 10px; display: grid; grid-template-columns: 28px minmax(0, 1fr) 18px; gap: 10px; align-items: center; text-align: left; border: 1px solid var(--border, #d6dbe3); border-radius: var(--radius, 16px); background: var(--surface-muted, #f7f8fa); background: light-dark(var(--panel, #fff), var(--surface-muted, #17202a)); color: var(--text, #152238); box-shadow: inset 0 1px 0 var(--inset-highlight, transparent); font: inherit; cursor: pointer; }
+.minishop-corp .corp-settings-icon { width: 21px; height: 21px; color: var(--text, #152238); opacity: .9; }
+.minishop-corp .corp-settings-text { display: grid; gap: 2px; min-width: 0; }
+.minishop-corp .corp-settings-text strong, .minishop-corp .corp-settings-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: normal; }
+.minishop-corp .corp-settings-text small { color: var(--muted, #596579); }
+.minishop-corp .corp-settings-arrow { width: 17px; height: 17px; color: var(--muted, #596579); }
