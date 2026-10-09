@@ -180,6 +180,7 @@ async def test_parallel_pages_share_a_bounded_native_refresh_limit(host: Host) -
     template = MemberSource(
         ProfileRecord(
             user_id=USER_ID,
+            minishop_id="ms_" + uuid4().hex,
             first_name=None,
             last_name=None,
             username=None,

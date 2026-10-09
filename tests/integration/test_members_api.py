@@ -114,8 +114,11 @@ async def test_paginated_profiles_statistics_and_pending_operations_are_allowlis
     assert not cursor
     linked = next(row for row in collected if row["profile"]["user_id"] == MEMBER)
     unlinked = next(row for row in collected if row["profile"]["user_id"] == OTHER)
+    native = await user_dal.get_user_by_id(host.session, MEMBER)
+    assert native is not None and native.minishop_id.startswith("ms_")
     assert linked["profile"] == {
         "user_id": MEMBER,
+        "minishop_id": native.minishop_id,
         "first_name": "Synthetic",
         "last_name": "Member",
         "username": "fixture_member",
@@ -123,6 +126,8 @@ async def test_paginated_profiles_statistics_and_pending_operations_are_allowlis
     }
     assert linked["avatar_path"].endswith(f"/{linked['id']}/avatar")
     assert unlinked["avatar_path"] is None and unlinked["profile"]["telegram_url"] is None
+    assert unlinked["profile"]["minishop_id"].startswith("ms_")
+    assert unlinked["profile"]["minishop_id"] != native.minishop_id
     assert linked["statistics"]["device_count"] == {"value": 0, "state": "available"}
     assert linked["statistics"]["device_limit"]["value"] == 5
     assert linked["operation"]["kind"] == "join" and linked["operation"]["state"] == "succeeded"

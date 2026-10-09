@@ -49,17 +49,13 @@ class AccountQuery(BaseModel):
 
 
 class AccountChoice(MemberProfile):
-    minishop_id: str
     telegram_id: int | None
 
 
 class AccountRecord(ProfileRecord):
-    minishop_id: str
-
     def choice(self) -> AccountChoice:
         return AccountChoice(
             **self.public().model_dump(),
-            minishop_id=self.minishop_id,
             telegram_id=self.telegram_id,
         )
 

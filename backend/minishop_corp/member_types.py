@@ -36,6 +36,7 @@ class MemberStatistics(BaseModel):
 class MemberProfile(BaseModel):
     model_config = ConfigDict(frozen=True)
     user_id: int
+    minishop_id: str
     first_name: str | None
     last_name: str | None
     username: str | None

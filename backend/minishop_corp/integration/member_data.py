@@ -33,6 +33,7 @@ def limiter_for(service: SubscriptionService) -> asyncio.Semaphore:
 class ProfileRecord(BaseModel):
     model_config = ConfigDict(from_attributes=True, frozen=True)
     user_id: int
+    minishop_id: str
     first_name: str | None
     last_name: str | None
     username: str | None
@@ -49,6 +50,7 @@ class ProfileRecord(BaseModel):
                 link = f"tg://user?id={self.telegram_id}"
         return MemberProfile(
             user_id=self.user_id,
+            minishop_id=self.minishop_id,
             first_name=self.first_name,
             last_name=self.last_name,
             username=self.username,
