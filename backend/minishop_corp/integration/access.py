@@ -89,7 +89,10 @@ class AccessAdapter:
                 default_traffic_limit_strategy=strategy,
                 hwid_device_limit=base_devices,
                 specific_squad_uuids=tuple(managed),
-                external_squad_uuid=target.external_squad_uuid,
+                external_squad_uuid=(
+                    target.external_squad_uuid
+                    or self.service.settings.parsed_user_external_squad_uuid
+                ),
                 tag=tariff.key,
             ),
         )
@@ -179,13 +182,19 @@ class AccessAdapter:
         await subscription_dal.deactivate_other_active_subscriptions(
             session, state.panel_user_uuid, link.panel_subscription_uuid
         )
-        # The old panel value must not overwrite this new, persisted corporate override.
+        # Native inheritance requires an explicit confirmed reset first. Without
+        # a default, simply removing the override omits the panel field and leaves
+        # the old external squad in place. Do not infer ownership from `source`:
+        # the host can rediscover even our own previous override as source=panel.
+        external = (
+            target.external_squad_uuid or self.service.settings.parsed_user_external_squad_uuid
+        )
         await squad_dal.set_external_override(
             session,
             user_id=user_id,
             panel_user_uuid=state.panel_user_uuid,
-            mode="set",
-            squad_uuid=target.external_squad_uuid,
+            mode="set" if external else "cleared",
+            squad_uuid=external,
             source=SOURCE,
         )
         await self._remove_obsolete_panel_overrides(session, state, [*previous_squads, *managed])
@@ -202,6 +211,10 @@ class AccessAdapter:
             is_trial=False,
         )
         remember_subscription_tariff_managed_squad_uuids(row, managed)
+        if target.external_squad_uuid is None:
+            await squad_dal.deactivate_external_override(
+                session, user_id=user_id, panel_user_uuid=state.panel_user_uuid
+            )
         await session.flush()
         return AccessState.model_validate(row)
 

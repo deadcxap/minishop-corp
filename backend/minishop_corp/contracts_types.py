@@ -24,7 +24,7 @@ class ContractTerms(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     tariff_key: str = Field(min_length=1, max_length=128)
-    external_squad_uuid: UUID
+    external_squad_uuid: UUID | None = None
     ends_at: AwareDatetime
     manager_user_id: AccountId | None
 
@@ -63,7 +63,7 @@ class ContractSummary(BaseModel):
 class ContractDetails(ContractSummary):
     member_count: int
     tariff_key: str
-    external_squad_uuid: UUID
+    external_squad_uuid: UUID | None
     manager_user_id: int | None
     created_at: datetime
     updated_at: datetime

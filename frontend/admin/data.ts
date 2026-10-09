@@ -5,10 +5,10 @@ export { operation, member, avatar, account } from "../shared/members-data";
 
 export interface Contract {
   id: string; name: string; ends_at: string; version: number; expired: boolean;
-  tariff_key: string; external_squad_uuid: string; manager_user_id: number | null; member_count: number;
+  tariff_key: string; external_squad_uuid: string | null; manager_user_id: number | null; member_count: number;
 }
 export interface Terms {
-  name: string; tariff_key: string; external_squad_uuid: string; ends_at: string; manager_user_id: number | null;
+  name: string; tariff_key: string; external_squad_uuid: string | null; ends_at: string; manager_user_id: number | null;
 }
 export interface Tariff { key: string; names: { ru: string; en: string }; hidden: boolean }
 export interface Account { user_id: number; first_name: string | null; last_name: string | null; username: string | null }
@@ -29,7 +29,7 @@ export interface SyncOperation extends OperationInfo { user_id: number; contract
 export function contract(value: unknown): Contract {
   const v = object(value);
   return { id: string(v.id), name: string(v.name), ends_at: string(v.ends_at), version: number(v.version),
-    expired: boolean(v.expired), tariff_key: string(v.tariff_key), external_squad_uuid: string(v.external_squad_uuid),
+    expired: boolean(v.expired), tariff_key: string(v.tariff_key), external_squad_uuid: nullable(v.external_squad_uuid, string),
     manager_user_id: nullable(v.manager_user_id, number), member_count: number(v.member_count) };
 }
 export function terms(v: Contract): Terms {

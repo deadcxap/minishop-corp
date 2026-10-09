@@ -48,7 +48,7 @@ async def test_native_migration_chain_rolled_back_then_replayed(engine: AsyncEng
             await connection.scalar(
                 text("SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'")
             )
-            == 5
+            == 6
         )
         names = (
             await connection.scalars(

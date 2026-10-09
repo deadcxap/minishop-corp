@@ -156,3 +156,12 @@ test("read failures use translated messages and a retry without leaking a respon
   assert.match(target.querySelector('[role="alert"]').textContent, /do not have access/);
   api.failList = false; await click("Refresh"); assert.equal(target.querySelector('[role="alert"]'), null);
 });
+
+test("an optional squad can be cleared and the saved null is decoded on reopening", async (context) => {
+  const { api, target, click, fill, submit, open } = setup(context); await open();
+  fill("squad", ""); await submit(); await click("Confirm", target.querySelector("dialog"));
+  assert.equal(api.contracts[0].external_squad_uuid, null);
+  await click("Back to contracts"); await click(api.contracts[0].name);
+  assert.equal(target.querySelector('[name="squad"]').value, "");
+  assert.equal(target.querySelector('[name="squad"]').required, false);
+});

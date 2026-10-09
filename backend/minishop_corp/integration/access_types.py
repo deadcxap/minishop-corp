@@ -19,11 +19,13 @@ def panel_time(value: datetime) -> datetime:
 class PeriodAccess:
     tariff_key: str
     ends_at: datetime
-    external_squad_uuid: str
+    external_squad_uuid: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.tariff_key.strip() or not self.external_squad_uuid.strip():
-            raise ValueError("Tariff and external squad are required")
+        if not self.tariff_key.strip():
+            raise ValueError("Tariff is required")
+        if self.external_squad_uuid is not None and not self.external_squad_uuid.strip():
+            raise ValueError("Use None for an unspecified external squad")
         object.__setattr__(self, "ends_at", panel_time(self.ends_at))
 
 

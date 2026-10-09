@@ -8,6 +8,7 @@ from .migration_0002 import upgrade as invitation_replacements
 from .migration_0003 import upgrade as membership_reconciliation
 from .migration_0004 import upgrade as shared_reconciliation_sweep
 from .migration_0005 import upgrade as account_deletion
+from .migration_0006 import upgrade as optional_external_squad
 
 # Fixed, namespaced schema; all constraints/indexes belong to plugin tables.
 INITIAL_DDL = (
@@ -189,5 +190,10 @@ def migrations() -> list[Migration]:
             id="minishop-corp.0005_account_deletion",
             description="Detach deleted accounts and preserve corporate history",
             upgrade=account_deletion,
+        ),
+        Migration(
+            id="minishop-corp.0006_optional_external_squad",
+            description="Allow contracts without a corporate external-squad override",
+            upgrade=optional_external_squad,
         ),
     ]

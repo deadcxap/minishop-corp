@@ -90,6 +90,8 @@ class ContractHost:
             if manager is None or Account.model_validate(manager).is_banned:
                 raise ContractError("minishop_corp_account_unavailable", 422)
         # Minishop owns the cache and refresh on a miss; no plugin panel client.
+        if terms.external_squad_uuid is None:
+            return
         squad = await self.service.panel_service.get_external_squad(str(terms.external_squad_uuid))
         try:
             resolved = ExternalSquad.model_validate(squad)

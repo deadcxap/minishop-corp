@@ -17,12 +17,16 @@ class PeriodTarget(BaseModel):
     kind: Literal["period"] = "period"
     tariff_key: str = Field(min_length=1, max_length=128)
     ends_at: AwareDatetime
-    external_squad_uuid: UUID
+    external_squad_uuid: UUID | None = None
     # Preserve the offer accepted by the request when queued terms are refreshed.
     accepted_version: Version | None = None
 
     def access(self) -> PeriodAccess:
-        return PeriodAccess(self.tariff_key, self.ends_at, str(self.external_squad_uuid))
+        return PeriodAccess(
+            self.tariff_key,
+            self.ends_at,
+            str(self.external_squad_uuid) if self.external_squad_uuid is not None else None,
+        )
 
 
 class TrialTarget(BaseModel):
@@ -109,7 +113,9 @@ async def prepare_operation(session: AsyncSession, draft: OperationDraft) -> Ope
     if isinstance(draft.target, PeriodTarget):
         revision = await session.get(Revision, (draft.contract_id, draft.contract_version))
         if revision is None or draft.target.access() != PeriodAccess(
-            revision.tariff_key, revision.ends_at, str(revision.external_squad_uuid)
+            revision.tariff_key,
+            revision.ends_at,
+            str(revision.external_squad_uuid) if revision.external_squad_uuid is not None else None,
         ):
             raise ContractError("minishop_corp_operation_stale", 409)
     operation = Operation(

@@ -31,7 +31,7 @@ export class Editor extends Panel {
   }
   dirty(): boolean {
     const old = this.original;
-    return old ? this.name !== old.name || this.tariffKey !== old.tariff_key || this.squadId !== old.external_squad_uuid
+    return old ? this.name !== old.name || this.tariffKey !== old.tariff_key || this.squadId !== (old.external_squad_uuid ?? "")
       || this.managerId !== old.manager_user_id || this.end !== new Date(old.ends_at).toISOString().slice(0, -1)
       : Boolean(this.name || this.tariffKey || this.end || this.managerId || this.squadId);
   }
@@ -41,9 +41,9 @@ export class Editor extends Panel {
     this.nextPage = nullable(result.next_page, number);
   }
   async submit(): Promise<void> {
-    if (this.verified?.uuid !== this.squadId) { this.error = new ApiError("admin_minishop_corp_squad_required", 400); this.render(); return; }
+    if (this.squadId && this.verified?.uuid !== this.squadId) { this.error = new ApiError("admin_minishop_corp_squad_required", 400); this.render(); return; }
     if (this.managerId === null && this.original?.manager_user_id !== null) return;
-    const draft: Terms = { name: this.name.trim(), tariff_key: this.tariffKey, external_squad_uuid: this.squadId,
+    const draft: Terms = { name: this.name.trim(), tariff_key: this.tariffKey, external_squad_uuid: this.squadId || null,
       ends_at: new Date(this.end + "Z").toISOString(), manager_user_id: this.managerId };
     if (this.original && !await confirm(this.root, this.t("confirm_terms"), `${this.t("confirm_terms_hint")}\n${draft.name} · ${draft.tariff_key} · ${date(draft.ends_at, this.language)}`, this.language, this.controller.signal)) return;
     const previous = this.original;
@@ -61,7 +61,7 @@ export class Editor extends Panel {
       }
       this.original = result; this.name = result.name; this.tariffKey = result.tariff_key;
       this.end = new Date(result.ends_at).toISOString().slice(0, -1);
-      this.managerId = result.manager_user_id; this.squadId = result.external_squad_uuid;
+      this.managerId = result.manager_user_id; this.squadId = result.external_squad_uuid ?? "";
       this.notice = "admin_minishop_corp_saved";
       if (this.alive) this.saved(result);
     }, true);
@@ -83,7 +83,7 @@ export class Editor extends Panel {
       form.append(field(this.t("name"), name), field(this.t("tariff"), plan), field(this.t("ends_at"), end, this.t("date_hint")));
       if (!this.tariffs.length) form.append(el("p", this.t("no_tariffs"), "corp-alert"));
       const squadBox = el("div", undefined, "corp-wide");
-      const squadInput = input("squad", this.squadId, (v) => { this.squadId = v.trim().toLowerCase(); this.verified = null; }); squadInput.required = true;
+      const squadInput = input("squad", this.squadId, (v) => { this.squadId = v.trim().toLowerCase(); this.verified = null; });
       squadBox.append(field(this.t("squad"), squadInput, this.t("squad_hint")), button(this.t("verify_squad"), () => {
         void this.run(async () => { this.verified = squad((await this.api.request(`/options/squad?uuid=${encodeURIComponent(this.squadId)}`)).squad); });
       }));
@@ -114,7 +114,7 @@ export class Editor extends Panel {
       const current = contract((await this.api.request(`/contracts/${this.id}`)).contract);
       this.original = current; this.name = current.name; this.tariffKey = current.tariff_key;
       this.end = new Date(current.ends_at).toISOString().slice(0, -1);
-      this.managerId = current.manager_user_id; this.squadId = current.external_squad_uuid;
+      this.managerId = current.manager_user_id; this.squadId = current.external_squad_uuid ?? "";
       this.query = this.managerId === null ? "" : String(this.managerId); this.selected = null;
       this.verified = null; await this.load();
       if (this.alive) this.saved(current);

@@ -25,7 +25,7 @@ class Contract(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(200))
     tariff_key: Mapped[str] = mapped_column(String(128))
-    external_squad_uuid: Mapped[UUID]
+    external_squad_uuid: Mapped[UUID | None]
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     manager_user_id: Mapped[int | None] = mapped_column(BigInteger)
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -40,7 +40,7 @@ class Revision(Base):
     version: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     tariff_key: Mapped[str] = mapped_column(String(128))
-    external_squad_uuid: Mapped[UUID]
+    external_squad_uuid: Mapped[UUID | None]
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     manager_user_id: Mapped[int | None] = mapped_column(BigInteger)
     actor_user_id: Mapped[int] = mapped_column(BigInteger)
