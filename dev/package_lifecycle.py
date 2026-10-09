@@ -246,7 +246,7 @@ async def main() -> None:
                 manager_user_id=deleted_user,
                 tariff_key="corp",
                 ends_at=datetime.now(UTC) + timedelta(days=30),
-                external_squad_uuid=UUID("20000000-0000-4000-8000-000000000001"),
+                external_squad_uuid=None,
             )
             session.add(detached)
             await session.flush()
@@ -282,7 +282,9 @@ async def main() -> None:
         assert await snapshot() == before
         async with http.get(BASE + f"/api/admin/minishop-corp/contracts/{detached_id}") as response:
             assert response.status == 200, await response.text()
-            assert (await response.json())["contract"]["manager_user_id"] is None
+            detached_payload = (await response.json())["contract"]
+            assert detached_payload["manager_user_id"] is None
+            assert detached_payload["external_squad_uuid"] is None
         print("PASS: native account deletion while disabled closes membership and clears manager")
 
         upgraded = await install(upgrade_archive)
