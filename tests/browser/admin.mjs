@@ -89,7 +89,7 @@ export async function adminCases(browser) {
       await route.fulfill({ status: result.status, contentType: "application/json", body: JSON.stringify(result.payload) });
     });
     await page.goto(`${process.env.CORP_PREVIEW_URL}/?audience=admin&language=en`);
-    await page.getByRole("button", { name: "Create contract", exact: true }).click();
+    await page.getByRole("button", { name: "Create subscription", exact: true }).click();
     await page.locator('[name="name"]').fill("Calendar fixture");
     await page.locator('[name="tariff"]').selectOption("corp");
     await page.locator('[name="ends_at"]').fill(day);

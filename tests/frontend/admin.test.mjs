@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Window } from "happy-dom";
 import * as admin from "../../frontend/dist/admin/index.js";
-import { fixture, CONTRACT_ID, SQUAD_ID, MEMBER_ID, DIAGNOSTIC_ID } from "../fixtures/admin-api.mjs";
+import { fixture, CONTRACT_ID, SQUAD_ID, MEMBER_ID, MEMBER_MINISHOP_ID, OTHER_MINISHOP_ID, DIAGNOSTIC_ID } from "../fixtures/admin-api.mjs";
 
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve)); };
 function setup(context) {
@@ -34,7 +34,7 @@ function setup(context) {
 }
 
 test("editor preserves draft on host updates and sends UTC with a stable create ID after network loss", async (context) => {
-  const { api, target, view, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  const { api, target, view, click, fill, submit } = setup(context); await flush(); await click("Create subscription");
   fill("name", "New corporate fixture"); fill("tariff", "corp"); fill("ends_at", "2031-11-12"); fill("manager", "910011"); await click("Find account"); await click("Confirm manager");
   fill("squad", SQUAD_ID); await click("Verify squad");
   admin.updateView(view, { currentLang: "ru" });
@@ -85,15 +85,16 @@ test("reloading after manager deletion clears the stale account selection", asyn
   assert.match(target.textContent, /No manager assigned/);
 });
 
-test("invitation write retries preserve UUID and show recovery for a lost one-time credential", async (context) => {
+test("invitation retries preserve UUID and recover the same code after a lost response", async (context) => {
   const { api, target, click, open } = setup(context); await open(); await click("Invitations");
   api.loseNextWrite = true;
   const form = target.querySelector('.corp-panel:not([hidden]) form');
   form.dispatchEvent(new document.defaultView.Event("submit", { bubbles: true, cancelable: true })); await flush();
   await click("Retry the same request");
-  assert.equal(api.invitations.length, 1); assert.match(target.textContent, /code cannot be shown again/);
+  assert.equal(api.invitations.length, 1);
   const writes = api.calls.filter((row) => row.method === "POST"); assert.equal(writes.length, 2); assert.equal(writes[0].body.id, writes[1].body.id);
-  assert.equal(target.querySelector('[name="code"]'), null);
+  assert.equal(target.querySelector('[name="code"]').value, api.invitations[0].code);
+  await click('Refresh'); assert.equal(target.querySelector('[name="code"]').value, api.invitations[0].code);
 });
 
 test("reusable code has an explicit limit and rotating it preserves members", async (context) => {
@@ -103,7 +104,9 @@ test("reusable code has an explicit limit and rotating it preserves members", as
   await click("Rotate code"); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.invitations.length, 2); assert.equal(api.invitations[1].use_limit, 7); assert.ok(api.invitations[0].revoked_at);
   assert.equal(api.members.length, 2);
-  await click("Hide code"); assert.equal(target.querySelector('[name="code"]'), null);
+  await click("Back to subscriptions"); await open(); await click("Invitations");
+  assert.deepEqual([...target.querySelectorAll('[name="code"]')].map(el => el.value).sort(), api.invitations.map(row => row.code).sort());
+  assert.ok(!target.textContent.includes('Hide code'));
 });
 
 test("member view treats missing metrics as unknown, escapes profiles and confirms queued exclusion", async (context) => {
@@ -112,7 +115,10 @@ test("member view treats missing metrics as unknown, escapes profiles and confir
   const webOnly = target.querySelector('[data-member="50000000-0000-4000-8000-000000000002"]');
   assert.match(webOnly.textContent, /No data/); assert.match(webOnly.textContent, /No Telegram account/); assert.equal(webOnly.querySelector("a"), null);
   assert.ok(target.querySelector(`[data-member="${MEMBER_ID}"] img`));
-  await click("Remove from group"); await click("Confirm", target.querySelector("dialog"));
+  assert.ok(target.textContent.includes(MEMBER_MINISHOP_ID)); assert.ok(webOnly.textContent.includes(OTHER_MINISHOP_ID));
+  assert.doesNotMatch(target.textContent, /#910021|#910022/);
+  assert.equal(target.querySelector(`[data-member="${MEMBER_ID}"] a`).textContent, '@fixture_manager');
+  await click("Remove from subscription"); await click("Confirm", target.querySelector("dialog"));
   assert.match(target.textContent, /Removal accepted/); assert.match(target.textContent, /Leaving/);
   assert.equal(api.members.length, 2); assert.equal(api.members[0].operation.state, "pending");
   assert.ok(api.calls.some((row) => row.path === `/contracts/${CONTRACT_ID}/members/${MEMBER_ID}/exclude`));
@@ -139,16 +145,25 @@ test("expired contracts retain member management but do not offer new codes", as
   api.contracts[0].ends_at = "2020-01-01T00:00:00Z"; await open(); await click("Invitations");
   assert.match(target.textContent, /Renew it before issuing/);
   assert.ok(![...target.querySelectorAll("button")].some((button) => button.textContent === "Generate code"));
-  await click("Members"); assert.ok([...target.querySelectorAll("button")].some((button) => button.textContent === "Remove from group"));
+  await click("Members"); assert.ok([...target.querySelectorAll("button")].some((button) => button.textContent === "Remove from subscription"));
 });
 
-test("network loss during rotation hides the possibly revoked code until the same request resolves", async (context) => {
+test("rotation preserves the visible list and retries recover the new code without minting another", async (context) => {
   const { api, target, click, fill, submit, open } = setup(context); await open(); await click("Invitations");
   fill("kind", "reusable"); await submit(); assert.ok(target.querySelector('[name="code"]'));
   api.loseNextWrite = true; await click("Rotate code"); await click("Confirm", target.querySelector("dialog"));
-  assert.equal(target.querySelector('[name="code"]'), null); assert.ok(api.invitations[0].revoked_at);
+  assert.match(target.textContent, /request may have completed/i); assert.ok(api.invitations[0].revoked_at);
   await click("Retry the same request"); assert.equal(api.invitations.length, 2);
-  assert.match(target.textContent, /code cannot be shown again/);
+  assert.ok([...target.querySelectorAll('[name="code"]')].some(el => el.value === api.invitations[1].code));
+});
+
+test("legacy invitations explain the missing plaintext without revoking the working code", async (context) => {
+  const { api, target, click, open } = setup(context);
+  api.invitations.push({ id: '40000000-0000-4000-8000-000000000001', kind: 'reusable', used_count: 2, reserved_count: 0,
+    use_limit: 10, revoked_at: null, created_at: '2028-01-01T00:00:00Z', code: null, link: null });
+  await open(); await click('Invitations');
+  assert.match(target.textContent, /only its hash is stored/); assert.equal(api.invitations[0].revoked_at, null);
+  assert.equal(target.querySelector('[name="code"]'), null); assert.ok(api.calls.every(c => c.method === 'GET'));
 });
 
 test("read failures use translated messages and a retry without leaking a response body", async (context) => {
@@ -161,13 +176,13 @@ test("an optional squad can be cleared and the saved null is decoded on reopenin
   const { api, target, click, fill, submit, open } = setup(context); await open();
   fill("squad", ""); await submit(); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.contracts[0].external_squad_uuid, null);
-  await click("Back to contracts"); await click(api.contracts[0].name);
+  await click("Back to subscriptions"); await click(api.contracts[0].name);
   assert.equal(target.querySelector('[name="squad"]').value, "");
   assert.equal(target.querySelector('[name="squad"]').required, false);
 });
 
 test("new form defaults to today, has no refresh or user directory, and requires manager confirmation", async (context) => {
-  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create subscription");
   const today = new Date();
   const expected = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   assert.equal(target.querySelector('[name="ends_at"]').value, expected);
@@ -186,7 +201,7 @@ test("new form defaults to today, has no refresh or user directory, and requires
 });
 
 test("date shortcuts use the selected date, calendar months and leap-year clamping", async (context) => {
-  const { target, click, fill } = setup(context); await flush(); await click("Create contract");
+  const { target, click, fill } = setup(context); await flush(); await click("Create subscription");
   for (const [start, label, expected] of [
     ["2031-01-31", "+month", "2031-02-28"], ["2032-01-31", "+month", "2032-02-29"],
     ["2032-02-29", "+year", "2033-02-28"], ["2031-10-31", "+3 months", "2032-01-31"],
@@ -207,7 +222,7 @@ test("editing another field preserves a legacy exact expiry until the date is ex
 });
 
 test("host remount restores every form field and the stable creation ID without account enumeration", async (context) => {
-  const { api, target, view, click, fill } = setup(context); await flush(); await click("Create contract");
+  const { api, target, view, click, fill } = setup(context); await flush(); await click("Create subscription");
   fill("name", "Draft after remount"); fill("tariff", "corp"); fill("ends_at", "2032-02-29"); fill("squad", SQUAD_ID);
   fill("manager", "@fixture_manager"); await click("Find account"); await click("Confirm manager");
   const id = view.panels.get("terms").id;
@@ -235,7 +250,7 @@ test("remount keeps the active contract tab and refuses to overwrite a newer sav
 });
 
 test("a lost create response survives remount and can only repeat its original payload", async (context) => {
-  const { api, target, view, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  const { api, target, view, click, fill, submit } = setup(context); await flush(); await click("Create subscription");
   fill("name", "Pending creation"); fill("tariff", "corp"); fill("manager", "910011"); await click("Find account"); await click("Confirm manager");
   api.loseNextWrite = true; await submit();
   const first = api.calls.find((v) => v.method === "POST").body;
@@ -250,11 +265,11 @@ test("a lost create response survives remount and can only repeat its original p
 });
 
 test("drafts are not restored for another administrator or after explicit discard", async (context) => {
-  const { api, target, view, click, fill } = setup(context); await flush(); await click("Create contract");
+  const { api, target, view, click, fill } = setup(context); await flush(); await click("Create subscription");
   fill("name", "Private draft"); admin.unmountView(view); api.actorUserId++;
   const next = admin.mountView("corporate-contracts", target, { currentLang: "en" }); context.after(() => admin.unmountView(next)); await flush();
   assert.equal(target.querySelector('[name="name"]'), null); assert.doesNotMatch(target.textContent, /Private draft/);
-  await click("Create contract"); fill("name", "Discard me"); await click("Back to contracts"); await click("Confirm", target.querySelector("dialog"));
+  await click("Create subscription"); fill("name", "Discard me"); await click("Back to subscriptions"); await click("Confirm", target.querySelector("dialog"));
   assert.equal(document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1"), null);
 });
 
@@ -262,7 +277,7 @@ test("invitation secrets never enter the form draft, and revoked permissions cle
   const { api, target, click, submit, open } = setup(context); await open(); await click("Invitations"); await submit();
   const secret = target.querySelector('[name="code"]').value;
   assert.ok(!document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1").includes(secret));
-  await click("Back to contracts"); api.failList = true; await click("Refresh");
+  await click("Back to subscriptions"); api.failList = true; await click("Refresh");
   assert.equal(document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1"), null);
 });
 
@@ -278,7 +293,7 @@ test("disposing an older host view cannot erase the replacement view's draft", a
   const { target, view, click, fill } = setup(context); await flush();
   const replacementTarget = document.createElement("main"); target.after(replacementTarget);
   const next = admin.mountView("corporate-contracts", replacementTarget, { currentLang: "en" }); context.after(() => admin.unmountView(next)); await flush();
-  await click("Create contract", replacementTarget);
+  await click("Create subscription", replacementTarget);
   const field = replacementTarget.querySelector('[name="name"]'); field.value = "Newest view";
   field.dispatchEvent(new document.defaultView.Event("input", { bubbles: true }));
   admin.unmountView(view);
@@ -293,11 +308,11 @@ test("disposing an older host view cannot erase the replacement view's draft", a
 });
 
 test("a contract can be created without a manager and an existing assignment can be cleared", async (context) => {
-  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create subscription");
   assert.equal(target.querySelector('[name="manager"]').required, false);
   fill("name", "Admin-only contract"); fill("tariff", "corp"); await submit();
   assert.equal(api.contracts[1].manager_user_id, null);
-  await click("Back to contracts"); await click(api.contracts[0].name);
+  await click("Back to subscriptions"); await click(api.contracts[0].name);
   await click("Leave without a manager"); await submit(); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.contracts[0].manager_user_id, null);
   assert.equal(target.querySelector('[name="manager"]').value, "");
@@ -305,7 +320,7 @@ test("a contract can be created without a manager and an existing assignment can
 });
 
 test("public Minishop and Telegram identifiers find and confirm the same canonical manager", async (context) => {
-  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create subscription");
   fill("name", "Manager by public identity"); fill("tariff", "corp");
   for (const identifier of ["ms_40000000000040008000000000000001", "771234567"]) {
     fill("manager", identifier); await click("Find account");
@@ -314,16 +329,16 @@ test("public Minishop and Telegram identifiers find and confirm the same canonic
     await click("Confirm manager");
   }
   await submit(); assert.equal(api.contracts[1].manager_user_id, 910011);
-  await click("Back to contracts"); await click(api.contracts[1].name);
+  await click("Back to subscriptions"); await click(api.contracts[1].name);
   assert.equal(target.querySelector('[name="manager"]').value, "ms_40000000000040008000000000000001");
 });
 
 test("lookup misses and API errors expose the response diagnostic ID", async (context) => {
-  const { api, target, click, fill } = setup(context); await flush(); await click("Create contract");
+  const { api, target, click, fill } = setup(context); await flush(); await click("Create subscription");
   fill("manager", "missing@example.invalid"); await click("Find account");
   assert.match(target.textContent, /Account not found/);
   assert.ok(target.textContent.includes(`Diagnostic ID: ${DIAGNOSTIC_ID}`));
-  await click("Leave without a manager"); await click("Back to contracts");
+  await click("Leave without a manager"); await click("Back to subscriptions");
   api.failList = true; await click("Refresh");
   assert.ok(target.querySelector('[role="alert"]').textContent.includes(DIAGNOSTIC_ID));
 });

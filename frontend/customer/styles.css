@@ -1,4 +1,9 @@
 .minishop-corp.corp-customer { padding: clamp(16px, 3vw, 28px); }
 .minishop-corp .corp-offer { border-color: var(--accent, #2563eb); }
-.minishop-corp .corp-wait { font-variant-numeric: tabular-nums; }
 .minishop-corp .corp-customer-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.minishop-corp.corp-settings-tile { padding: 0; }
+.minishop-corp .corp-settings-button { width: 100%; border: 0; border-radius: inherit; background: transparent; padding: 18px; display: flex; gap: 14px; align-items: center; text-align: left; color: inherit; }
+.minishop-corp .corp-settings-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px; background: var(--surface, #f1f5f9); color: var(--accent, #2563eb); font-size: 26px; }
+.minishop-corp .corp-settings-text { display: grid; gap: 4px; min-width: 0; }
+.minishop-corp .corp-settings-text small { color: var(--muted, #596579); font-size: .8rem; line-height: 1.4; }
+.minishop-corp .corp-settings-arrow { margin-left: auto; color: var(--muted, #596579); font-size: 26px; }

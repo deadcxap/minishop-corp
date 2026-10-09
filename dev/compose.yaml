@@ -111,6 +111,11 @@ services:
       retries: 30
   backend:
     <<: *runtime
+    environment:
+      <<: *environment
+      # Browser matrices and preview asset requests share one container IP.
+      # Only this synthetic stand needs a larger native HTTP quota; Q-01 is unchanged.
+      WEBAPP_RATE_LIMIT_MAX_REQUESTS: "1000"
     command: ["python", "/minishop/backend/plugin_launcher.py", "backend"]
     ports:
       - "127.0.0.1:${CORP_WEBAPP_PORT:-18081}:8081"

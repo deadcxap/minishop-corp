@@ -28,6 +28,7 @@ export interface CorporateMember {
   joined_at: string | null;
   profile: {
     user_id: number;
+    minishop_id: string;
     first_name: string | null;
     last_name: string | null;
     username: string | null;

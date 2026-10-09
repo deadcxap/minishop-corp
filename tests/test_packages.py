@@ -34,6 +34,11 @@ def test_signature_reproducibility_and_trust(tmp_path: Path) -> None:
     key = Ed25519PrivateKey.generate()
     metadata = manifest("minishop-corp-test")
     assert "core_compatibility" not in metadata
+    user_ui = metadata["frontend"]["user"]
+    assert [slot["target"] for slot in user_ui["slots"]] == ["user.settings.cards"]
+    assert all(
+        page["navigation"] == "hidden" and page["parent"] == "settings" for page in user_ui["pages"]
+    )
     first = archive(key, metadata, files())
     assert first == archive(key, metadata, dict(reversed(list(files().items()))))
     candidate = inspect_archive(tmp_path, first)

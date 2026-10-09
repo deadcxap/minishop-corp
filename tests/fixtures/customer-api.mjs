@@ -3,7 +3,7 @@ export const CODE = "CORP-00000000000000000000000000000000";
 export function customerFixture() {
   const base = fixture();
   const contract = () => { const { id, name, ends_at, version, expired } = base.contracts[0]; return { id, name, ends_at, version, expired }; };
-  const tariff = { key: "corp", names: { ru: "Корпоративный", en: "Corporate" }, traffic_limit_bytes: 21474836480, hwid_device_limit: 5, traffic_strategy: "NO_RESET" };
+  const tariff = { key: "corp", names: { ru: "Внутренний тариф", en: "Internal tariff" }, traffic_limit_bytes: 21474836480, hwid_device_limit: 5, traffic_strategy: "NO_RESET" };
   const state = { base, calls: [], manager: false, membership: null, last_departure: null, operations: [], loseNextWrite: false,
     previewError: null, confirmError: null, trial: true, wait: 60 };
   const ok = (payload, status = 200) => ({ status, payload: { ok: true, ...payload } });
@@ -56,6 +56,6 @@ export function customerFixture() {
     else { op.departure = { kind: state.trial ? "trial" : "disabled", ends_at: "2030-11-01T00:00:00Z" }; state.last_departure = op; state.membership = null; }
   };
   state.seedCode = () => base.invitations.push({ id: "40000000-0000-4000-8000-000000000001", contract_id: CONTRACT_ID, kind: "reusable", use_limit: 12,
-    used_count: 4, reserved_count: 0, revoked_at: null, created_at: "2029-01-01T00:00:00Z" });
+    used_count: 4, reserved_count: 0, revoked_at: null, created_at: "2029-01-01T00:00:00Z", code: CODE, link: `https://example.invalid/#corp_code=${CODE}` });
   return state;
 }

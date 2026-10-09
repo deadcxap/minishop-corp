@@ -42,6 +42,10 @@
 .minishop-corp .corp-footnote { font-size: .82rem; }
 .minishop-corp .corp-member { display: grid; grid-template-columns: minmax(180px, 1.3fr) minmax(130px, 1fr) minmax(100px, .8fr) minmax(120px, 1fr); align-items: start; gap: 16px; }
 .minishop-corp .corp-identity { display: flex; gap: 10px; min-width: 0; }
+.minishop-corp .corp-profile { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.minishop-corp .corp-profile h3 { font-size: .85rem; }
+.minishop-corp .corp-profile small, .minishop-corp .corp-profile a { font-size: .75rem; }
+.minishop-corp .corp-account-id { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
 .minishop-corp .corp-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--border, #d6dbe3); display: grid; place-items: center; overflow: hidden; flex-shrink: 0; }
 .minishop-corp .corp-avatar img { width: 44px; height: 44px; object-fit: cover; }
 .minishop-corp .corp-metric { display: flex; flex-wrap: wrap; gap: 5px; align-content: start; }

@@ -17,6 +17,7 @@ export interface Squad { uuid: string; name: string }
 export interface Invitation {
   id: string; kind: "single" | "reusable"; used_count: number; reserved_count: number;
   use_limit: number; revoked_at: string | null; created_at: string;
+  code: string | null; link: string | null;
 }
 export interface Issued { invitation: Invitation; code: string | null; link: string | null }
 export interface Sync {
@@ -47,7 +48,7 @@ export function tariff(value: unknown): Tariff {
 }
 export function account(value: unknown): Account {
   const v = object(value);
-  return { ...profile(v), minishop_id: string(v.minishop_id), telegram_id: nullable(v.telegram_id, number) };
+  return { ...profile(v), telegram_id: nullable(v.telegram_id, number) };
 }
 export function squad(value: unknown): Squad {
   const v = object(value);
@@ -57,7 +58,8 @@ export function invitation(value: unknown): Invitation {
   const v = object(value);
   return { id: string(v.id), kind: choice(v.kind, ["single", "reusable"]), used_count: number(v.used_count),
     reserved_count: number(v.reserved_count), use_limit: number(v.use_limit),
-    revoked_at: nullable(v.revoked_at, string), created_at: string(v.created_at) };
+    revoked_at: nullable(v.revoked_at, string), created_at: string(v.created_at),
+    code: nullable(v.code, string), link: nullable(v.link, string) };
 }
 export function issued(value: unknown): Issued {
   const v = object(value);

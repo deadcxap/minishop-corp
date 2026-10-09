@@ -24,8 +24,21 @@ try {
         page.on("pageerror", (error) => errors.push(error.message));
         await page.goto(base + (audience === "admin" ? "/admin/corporate-contracts" : "/home") + `?lang=${language}`);
         const label = audience === "admin"
-          ? (language === "ru" ? "Создать контракт" : "Create contract")
+          ? (language === "ru" ? "Создать подписку" : "Create subscription")
           : (language === "ru" ? "Проверить код" : "Check code");
+        if (audience === 'customer') {
+          // The native runtime is loaded before checking absence on the home page.
+          await page.waitForLoadState('networkidle');
+          assert.equal(await page.locator('.minishop-corp').count(), 0);
+          assert.equal(await page.locator('a[href*="/extensions/minishop-corp/"]').count(), 0);
+          await page.goto(base + '/settings');
+          await page.locator('.corp-settings-tile[aria-busy="false"]').waitFor();
+          assert.equal(await page.locator('.minishop-corp button').count(), 1);
+          assert.equal(await page.locator('.minishop-corp input').count(), 0);
+          assert.equal(await page.locator('a[href*="/extensions/minishop-corp/"]').count(), 0);
+          await page.screenshot({ path: `.local/screenshots/core-settings-${language}-${width}.png`, fullPage: true });
+          await page.locator('.corp-settings-button').click();
+        }
         try {
           await page.locator('.minishop-corp[aria-busy="false"]').first().waitFor({ timeout: 30000 });
           await page.getByRole("button", { name: label, exact: true }).waitFor({ timeout: 30000 });
@@ -102,6 +115,7 @@ try {
           const input = page.locator(".minishop-corp input");
           try {
             await input.waitFor();
+            await page.waitForFunction((expected) => document.querySelector('.minishop-corp input')?.value === expected, code);
           } catch (error) {
             await page.screenshot({ path: `.local/screenshots/core-link-failed-${language}-${width}.png`, fullPage: true });
             console.error((await page.locator('body').innerText()).slice(0, 1200));

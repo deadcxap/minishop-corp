@@ -3,11 +3,13 @@ export const CONTRACT_ID = "30000000-0000-4000-8000-000000000001";
 export const SQUAD_ID = "20000000-0000-4000-8000-000000000001";
 export const MEMBER_ID = "50000000-0000-4000-8000-000000000001";
 export const MINISHOP_ID = "ms_40000000000040008000000000000001";
+export const MEMBER_MINISHOP_ID = "ms_40000000000040008000000000000021";
+export const OTHER_MINISHOP_ID = "ms_40000000000040008000000000000022";
 export const TELEGRAM_ID = 771234567;
 export const DIAGNOSTIC_ID = "1234567890abcdef1234567890abcdef";
 export const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aTgAAAABJRU5ErkJggg==";
 const now = "2030-01-01T00:00:00Z";
-const profile = { user_id: 910011, first_name: "Fixture", last_name: "Manager", username: "fixture_manager", telegram_url: "https://t.me/fixture_manager" };
+const profile = { user_id: 910011, minishop_id: MINISHOP_ID, first_name: "Fixture", last_name: "Manager", username: "fixture_manager", telegram_url: "https://t.me/fixture_manager" };
 const available = (value) => ({ value, state: "available" });
 const unknown = { value: null, state: "unavailable" };
 export function fixture() {
@@ -17,11 +19,11 @@ export function fixture() {
       external_squad_uuid: SQUAD_ID, manager_user_id: 910011, ends_at: "2030-10-01T12:42:23.123Z", version: 1, expired: false, member_count: 2 }],
     invitations: [],
     members: [
-      { id: MEMBER_ID, state: "active", joined_at: now, profile: { ...profile, user_id: 910021, first_name: "Fixture <script>alert(1)</script>", last_name: "Very long member name" },
+      { id: MEMBER_ID, state: "active", joined_at: now, profile: { ...profile, user_id: 910021, minishop_id: MEMBER_MINISHOP_ID, first_name: "Fixture <script>alert(1)</script>", last_name: "Very long member name" },
         statistics: { traffic_used_bytes: available(1073741824), traffic_limit_bytes: available(21474836480), device_count: available(2), device_limit: available(5) },
         avatar_path: `/api/admin/minishop-corp/contracts/${CONTRACT_ID}/members/${MEMBER_ID}/avatar`, operation: null },
       { id: "50000000-0000-4000-8000-000000000002", state: "active", joined_at: now,
-        profile: { user_id: 910022, first_name: null, last_name: null, username: null, telegram_url: null },
+        profile: { user_id: 910022, minishop_id: OTHER_MINISHOP_ID, first_name: null, last_name: null, username: null, telegram_url: null },
         statistics: { traffic_used_bytes: unknown, traffic_limit_bytes: { value: 0, state: "stored" }, device_count: unknown, device_limit: available(0) }, avatar_path: null, operation: null },
     ],
   };
@@ -66,13 +68,14 @@ export function fixture() {
       const old = state.invitations.find((row) => row.id === parts[3]);
       if (parts[4] === "revoke") { if (!old) return fail("minishop_corp_invitation_missing", 404); old.revoked_at = now; return ok({ invitation: old }); }
       const existing = state.invitations.find((row) => row.id === body.id);
-      if (existing) return ok({ invitation: existing, code: null, link: null, created: false, notice: "minishop_corp_code_shown_once" });
+      if (existing) return ok({ invitation: existing, code: existing.code, link: existing.link, created: false, notice: "minishop_corp_code_saved" });
       if (old) old.revoked_at = now;
       else if (body.kind === "reusable" && state.invitations.some((row) => row.kind === "reusable" && !row.revoked_at)) return fail("minishop_corp_invitation_exists", 409);
       const row = { id: body.id, contract_id: current.id, kind: old?.kind ?? body.kind, use_limit: old?.use_limit ?? body.use_limit,
-        used_count: 0, reserved_count: 0, revoked_at: null, created_at: now, replaces_id: old?.id ?? null };
+        used_count: 0, reserved_count: 0, revoked_at: null, created_at: now, replaces_id: old?.id ?? null,
+        code: `CORP-${body.id.replaceAll("-", "").toUpperCase()}`, link: `https://example.invalid/#corp_code=CORP-${body.id.replaceAll("-", "").toUpperCase()}` };
       state.invitations.push(row);
-      return ok({ invitation: row, code: "CORP-00000000000000000000000000000000", link: "https://example.invalid/#corp_code=synthetic", created: true, notice: "minishop_corp_code_shown_once" });
+      return ok({ invitation: row, code: row.code, link: row.link, created: true, notice: "minishop_corp_code_saved" });
     }
     if (parts[2] === "members") {
       if (parts.length === 3) return ok({ members: state.members, next_after: null });

@@ -2,15 +2,16 @@ import { ApiError, requestId } from "../shared/api";
 import type { CustomerProps } from "../shared/host";
 import { customerText, type CustomerKey } from "../shared/i18n";
 import { MembersPanel } from "../shared/member-panel";
-import { Panel, button, confirm, date, el, field, input } from "../shared/ui";
-import { invitation, issued, type Invitation, type Issued } from "../admin/data";
+import { Panel, button, confirm, date, el } from "../shared/ui";
+import { invitationCode } from "../shared/invitation-code";
+import { invitation, issued, type Invitation } from "../admin/data";
 import { CustomerApi } from "./api";
 import { list, summary, type Summary } from "./data";
 
 const denied = (error: unknown): boolean => error instanceof ApiError && [401, 403, 404].includes(error.status);
 
 class ManagerCode extends Panel {
-  row: Invitation | null = null; secret: Issued | null = null; loaded = false;
+  row: Invitation | null = null; loaded = false;
   constructor(language: string, private current: () => Summary, host: () => CustomerProps["host"]) {
     super(language, (signal) => new CustomerApi(host, signal)); void this.run(() => this.load());
   }
@@ -18,19 +19,17 @@ class ManagerCode extends Panel {
   get path(): string { return `/managed-contracts/${this.current().id}/invitations`; }
   async load(): Promise<void> {
     this.row = list((await this.api.request(this.path)).invitations, invitation)[0] ?? null;
-    if (this.secret?.invitation.id !== this.row?.id) this.secret = null;
     this.loaded = true;
   }
-  override failed(error: unknown): void { if (denied(error)) { this.row = null; this.secret = null; } }
+  override failed(error: unknown): void { if (denied(error)) this.row = null; }
   async rotate(): Promise<void> {
     const row = this.row;
     if (!row || this.busy || this.retry) return;
     if (!await confirm(this.root, this.t("confirm_rotate"), `${this.t("code_change_hint")} ${this.t("rotation_hint")}`, this.language, this.controller.signal)) return;
     const payload = { id: requestId() };
     await this.run(async () => {
-      this.secret = null;
       const result = issued(await this.api.request(`${this.path}/${row.id}/rotate`, "POST", payload));
-      this.row = result.invitation; this.secret = result;
+      this.row = result.invitation;
     }, true);
   }
   render(): void {
@@ -42,41 +41,20 @@ class ManagerCode extends Panel {
       body.append(el("h3", this.t("reusable")), el("p", `${this.t("used")}: ${row.used_count} / ${row.use_limit} · ${this.t("reserved")}: ${row.reserved_count}`));
       if (expired) body.append(el("p", this.t("expired_codes"), "corp-notice"));
       else body.append(button(this.t("rotate"), () => { void this.rotate(); }, "corp-primary"));
-      if (this.secret) {
-        const box = el("div", undefined, "corp-secret");
-        box.append(el("p", this.secret.code ? this.c("save_code") : this.c("manager_code_lost")));
-        for (const [key, value] of [["code", this.secret.code], ["link", this.secret.link]] as const) {
-          if (!value) continue;
-          const text = input(key, value, () => {}); text.readOnly = true; text.autocomplete = "off"; text.addEventListener("focus", () => text.select());
-          box.append(field(this.t(key), text), button(this.t("copy"), () => { void this.run(async () => {
-            try { await navigator.clipboard.writeText(value); this.notice = "admin_minishop_corp_copied"; }
-            catch { this.notice = "admin_minishop_corp_copy_failed"; }
-          }); }));
-        }
-        if (this.secret.code && !this.secret.link) box.append(el("p", this.t("link_missing")));
-        box.append(button(this.t("hide_code"), () => { this.secret = null; this.render(); })); body.append(box);
-      }
+      body.append(invitationCode(this, row));
     });
   }
-  override destroy(): void { this.secret = null; super.destroy(); }
+  override destroy(): void { this.row = null; super.destroy(); }
 }
 
 type Tab = "members" | "invitations";
 export class ManagerView extends Panel {
   rows: Summary[] = []; after: string | null = null; loaded = false; current: Summary | null = null;
-  tab: Tab = "members"; panels = new Map<Tab, Panel>(); private timer: ReturnType<typeof setInterval>;
+  tab: Tab = "members"; panels = new Map<Tab, Panel>();
   constructor(target: HTMLElement, public props: CustomerProps) {
     super(props.language, (signal) => new CustomerApi(() => this.props.host, signal));
     this.root.className = "minishop-corp corp-customer"; target.append(this.root);
     void this.run(() => this.load());
-    this.timer = setInterval(() => {
-      if (document.hidden || this.locked || this.confirming) return;
-      if (this.current) void this.run(async () => {
-        this.current = summary((await this.api.request(`/managed-contracts/${this.current?.id}`)).contract);
-        this.panels.forEach((panel) => panel.render());
-      });
-      else if (this.rows.length <= 25) void this.run(() => this.load());
-    }, 30000);
   }
   c(key: CustomerKey): string { return customerText(this.language, key); }
   get locked(): boolean { return this.busy || Boolean(this.retry) || [...this.panels.values()].some((panel) => panel.busy || panel.retry); }
@@ -142,5 +120,5 @@ export class ManagerView extends Panel {
     });
   }
   updateProps(props: CustomerProps): void { this.props = props; this.update(props.language); this.panels.forEach((panel) => panel.update(props.language)); }
-  override destroy(): void { clearInterval(this.timer); this.clear(); super.destroy(); }
+  override destroy(): void { this.clear(); super.destroy(); }
 }

@@ -97,22 +97,30 @@ export class MembersPanel extends Panel {
         const card = el("article", undefined, "corp-member corp-card"); card.dataset.member = row.id;
         const identity = el("div", undefined, "corp-identity");
         const photo = this.avatars.get(row.id);
+        const name = person(row.profile);
+        const parts = name.split(/\s+/).filter(Boolean);
+        const initials = (parts.length > 1 ? parts.slice(0, 2).map((part) => part[0]).join("") : name.slice(0, 2)).toUpperCase();
         const imageBox = el("div", undefined, "corp-avatar");
         imageBox.setAttribute("aria-label", this.t("avatar"));
         if (photo?.data_url && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(photo.data_url) && photo.data_url.length <= 700000) {
           const image = el("img"); image.src = photo.data_url; image.alt = person(row.profile); image.width = 44; image.height = 44;
           image.title = photo.state === "stale" ? translate(this.language, "wa_minishop_corp_data_stale") : this.t("avatar");
-          image.addEventListener("error", () => { image.remove(); imageBox.textContent = person(row.profile).slice(0, 1); }, { once: true }); imageBox.append(image);
+          image.addEventListener("error", () => { image.remove(); imageBox.textContent = initials; }, { once: true }); imageBox.append(image);
         } else {
-          imageBox.textContent = person(row.profile).slice(0, 1);
+          imageBox.textContent = initials;
           imageBox.title = translate(this.language, photo?.state === "unavailable" ? "wa_minishop_corp_data_unavailable"
             : !photo && row.avatar_path ? "wa_minishop_corp_loading" : "wa_minishop_corp_avatar_missing");
         }
-        const profile = el("div"); profile.append(el("h3", person(row.profile)), el("small", `#${row.profile.user_id}`));
+        const profile = el("div", undefined, "corp-profile"); profile.append(el("h3", name));
         const link = row.profile.telegram_url;
         if (link && /^(https:\/\/t\.me\/[A-Za-z0-9_]+|tg:\/\/user\?id=\d+)$/.test(link)) {
           const anchor = el("a", row.profile.username ? `@${row.profile.username}` : "Telegram"); anchor.href = link; anchor.target = "_blank"; anchor.rel = "noopener noreferrer"; profile.append(anchor);
-        } else profile.append(el("small", this.t("no_telegram")));
+        } else {
+          if (row.profile.username) profile.append(el("small", `@${row.profile.username}`));
+          profile.append(el("small", this.t("no_telegram")));
+        }
+        const id = el("small", row.profile.minishop_id, "corp-account-id"); id.title = row.profile.minishop_id;
+        profile.append(id);
         identity.append(imageBox, profile); card.append(identity);
         for (const [label, used, max, bytes] of [["traffic", row.statistics.traffic_used_bytes, row.statistics.traffic_limit_bytes, true],
           ["devices", row.statistics.device_count, row.statistics.device_limit, false]] as const) {

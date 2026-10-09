@@ -29,7 +29,10 @@ function errorMessage(language: string, error: unknown): string {
   return translate(language, "wa_minishop_corp_error");
 }
 export function errorText(language: string, error: unknown): string {
-  const message = errorMessage(language, error);
+  let message = errorMessage(language, error);
+  if (error instanceof ApiError && error.status === 429 && error.retryAfter !== null) {
+    message += ` ${translate(language, "minishop_corp_retry_after").replace("{minutes}", String(Math.max(1, Math.ceil(error.retryAfter / 60))))}`;
+  }
   return error instanceof ApiError && error.diagnosticId
     ? `${message} ${translate(language, "minishop_corp_diagnostic_id").replace("{id}", error.diagnosticId)}` : message;
 }

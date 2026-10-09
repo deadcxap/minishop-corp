@@ -32,8 +32,8 @@ export function date(value: string | null, language: string): string {
     dateStyle: "medium", timeStyle: "short", timeZone: "UTC",
   }).format(new Date(value)) + " UTC";
 }
-export function person(value: { first_name: string | null; last_name: string | null; username: string | null; user_id: number }): string {
-  return [value.first_name, value.last_name].filter(Boolean).join(" ") || (value.username ? `@${value.username}` : `#${value.user_id}`);
+export function person(value: { first_name: string | null; last_name: string | null; username: string | null; minishop_id: string }): string {
+  return [value.first_name, value.last_name].filter(Boolean).join(" ") || (value.username ? `@${value.username}` : value.minishop_id);
 }
 export function confirm(root: HTMLElement, title: string, message: string, language: string, signal: AbortSignal): Promise<boolean> {
   return new Promise((resolve) => {

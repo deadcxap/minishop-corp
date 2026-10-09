@@ -28,10 +28,10 @@ test("customer uses scoped host request, supports language changes and cleanup",
   const view = customer.mountView("corporate-home", element, props);
   assert.equal(element.querySelector("section").getAttribute("aria-busy"), "true");
   await flush();
-  assert.match(element.textContent, /Для корпоративных клиентов/);
+  assert.match(element.textContent, /Корпоративная подписка/);
   assert.match(element.textContent, /Проверить код/);
   customer.updateView(view, { ...props, language: "en" });
-  assert.match(element.textContent, /For corporate customers/);
+  assert.match(element.textContent, /Corporate subscription/);
   customer.unmountView(view);
   assert.equal(element.children.length, 0);
   assert.equal(signal.aborted, true);
@@ -60,6 +60,6 @@ test("admin uses its own authenticated endpoint", async (context) => {
   });
   const view = admin.mountView("corporate-contracts", element, { currentLang: "en" });
   await flush();
-  assert.match(element.textContent, /No contracts yet/);
+  assert.match(element.textContent, /No corporate subscriptions yet/);
   admin.unmountView(view);
 });

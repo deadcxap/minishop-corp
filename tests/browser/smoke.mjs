@@ -19,7 +19,7 @@ try {
             assert.equal(await page.getByRole("button", { name: language === "ru" ? "Проверить код" : "Check code", exact: true }).isVisible(), true);
             assert.equal(await page.locator("[role=alert]").count(), 0);
           } else {
-            assert.equal(await page.getByRole("button", { name: language === "ru" ? "Создать контракт" : "Create contract", exact: true }).isVisible(), true);
+            assert.equal(await page.getByRole("button", { name: language === "ru" ? "Создать подписку" : "Create subscription", exact: true }).isVisible(), true);
             assert.equal(await page.locator("[role=alert]").count(), 0);
           }
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

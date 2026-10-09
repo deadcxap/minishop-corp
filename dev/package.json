@@ -22,9 +22,9 @@
         "group": "operations",
         "order": 100,
         "i18nKey": "admin_minishop_corp_title",
-        "fallbackLabel": "Corporate contracts",
+        "fallbackLabel": "Corporate subscriptions",
         "titleI18nKey": "admin_minishop_corp_title",
-        "fallbackTitle": "Corporate contracts"
+        "fallbackTitle": "Corporate subscriptions"
       }
     ],
     "user": {
@@ -36,27 +36,31 @@
         {
           "id": "corporate-home",
           "view": "corporate-home",
-          "label": "For corporate customers",
+          "label": "Corporate subscription",
           "i18nKey": "wa_minishop_corp_title",
           "icon": "shield",
-          "order": 100
+          "order": 100,
+          "parent": "settings",
+          "navigation": "hidden"
         },
         {
           "id": "corporate-manager",
           "view": "corporate-manager",
-          "label": "Organization management",
+          "label": "Subscription management",
           "i18nKey": "wa_minishop_corp_manager_title",
           "icon": "shield",
-          "order": 110
+          "order": 110,
+          "parent": "settings",
+          "navigation": "hidden"
         }
       ],
       "slots": [
         {
           "id": "corporate-card",
           "view": "corporate-card",
-          "label": "For corporate customers",
+          "label": "Corporate subscription",
           "i18nKey": "wa_minishop_corp_title",
-          "target": "user.home.cards",
+          "target": "user.settings.cards",
           "order": 100
         }
       ]

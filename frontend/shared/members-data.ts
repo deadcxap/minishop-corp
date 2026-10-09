@@ -31,6 +31,6 @@ export function avatar(value: unknown): MemberAvatar {
 
 export function account(value: unknown) {
   const v = object(value);
-  return { user_id: number(v.user_id), first_name: nullable(v.first_name, string),
+  return { user_id: number(v.user_id), minishop_id: string(v.minishop_id), first_name: nullable(v.first_name, string),
     last_name: nullable(v.last_name, string), username: nullable(v.username, string) };
 }
