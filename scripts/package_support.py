@@ -2,6 +2,7 @@
 
 import ast
 import base64
+import binascii
 import hashlib
 import io
 import json
@@ -57,6 +58,20 @@ def load_key(path: Path) -> Ed25519PrivateKey:
     if path.stat().st_mode & 0o077:
         raise ValueError("Signing key must have permissions 0600")
     return Ed25519PrivateKey.from_private_bytes(path.read_bytes())
+
+
+def load_key_env(name: str) -> Ed25519PrivateKey:
+    """Read a base64-encoded private seed without writing it to disk or logging it."""
+    encoded = os.environ.pop(name, "").strip()
+    if not encoded:
+        raise ValueError(f"Missing signing secret {name}; configure it in GitHub Actions secrets")
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        raise ValueError(f"Signing secret {name} must be base64 of a 32-byte Ed25519 key") from None
+    if len(raw) != 32:
+        raise ValueError(f"Signing secret {name} must be base64 of a 32-byte Ed25519 key")
+    return Ed25519PrivateKey.from_private_bytes(raw)
 
 
 def public_key(key: Ed25519PrivateKey) -> tuple[str, str]:

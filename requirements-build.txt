@@ -1,0 +1,4 @@
+# Standalone package signing only; no Minishop runtime or test dependencies.
+cryptography==50.0.2
+cffi==2.1.1
+pycparser==3.0

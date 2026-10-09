@@ -1,6 +1,12 @@
 """Real Minishop verification, including signature and payload tampering."""
 
+import base64
+import hashlib
 import io
+import json
+import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from zipfile import ZipFile
@@ -11,7 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 # The build scripts are deliberately not installed as application code.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from package_support import archive, create_key, load_key, manifest, public_key  # noqa: E402
+from package_support import ROOT, archive, create_key, load_key, manifest, public_key  # noqa: E402
 
 
 def files() -> dict[str, bytes]:
@@ -76,3 +82,110 @@ def test_release_package_rejects_another_core_revision(
     key = Ed25519PrivateKey.generate()
     with pytest.raises(PluginPackageError, match="incompatible_core_revision"):
         inspect_archive(tmp_path, archive(key, manifest("minishop-corp-test"), files()))
+
+
+@pytest.fixture
+def standalone_project(tmp_path: Path) -> Path:
+    """Only our builder and package inputs; no Core, test tools or dev environment."""
+    for name in (
+        "scripts/build-package.py",
+        "scripts/package_support.py",
+        "dev/package.json",
+        "dev/minishop.json",
+        "pyproject.toml",
+        "backend/minishop_corp/__init__.py",
+        "locales/en.json",
+        "locales/ru.json",
+    ):
+        target = tmp_path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / name, target)
+    for name, body in files().items():
+        if name.startswith("frontend/"):
+            target = tmp_path / name.replace("frontend/", "frontend/dist/", 1)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(body)
+    return tmp_path
+
+
+def build_cli(
+    project: Path, *args: str, secret: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    env = {
+        **os.environ,
+        "PYTHONPATH": "",
+        "PYTHONNOUSERSITE": "1",
+        "MINISHOP_SOURCE": str(project / "no-core"),
+        "KIRO_WHEEL_SOURCE": str(project / "no-wheel"),
+    }
+    env.pop("CORP_TEST_SIGNING_KEY", None)
+    if secret is not None:
+        env["CORP_TEST_SIGNING_KEY"] = secret
+    return subprocess.run(
+        [sys.executable, str(project / "scripts/build-package.py"), "build", *args],
+        cwd=project,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+def test_standalone_build_accepts_the_same_persistent_key_as_file_or_secret(
+    standalone_project: Path,
+) -> None:
+    project = standalone_project
+    key = project / "publisher.key"
+    create_key(key)
+    secret = base64.b64encode(key.read_bytes()).decode("ascii")
+    builds = (
+        build_cli(project, "--key", str(key), "--output", "release-file"),
+        build_cli(
+            project,
+            "--key-env",
+            "CORP_TEST_SIGNING_KEY",
+            "--output",
+            "release-env",
+            secret=secret,
+        ),
+    )
+    for result in builds:
+        assert result.returncode == 0, result.stderr
+        assert secret not in result.stdout + result.stderr
+    file_output = project / "release-file"
+    env_output = project / "release-env"
+    index = json.loads((env_output / "minishop-plugin.json").read_bytes())
+    body = (env_output / index["artifact"]).read_bytes()
+    assert body == (file_output / index["artifact"]).read_bytes()
+    # The real host must accept the output of the process with no Core imports.
+    candidate = inspect_archive(project / "store", body)
+    assert candidate.digest == index["sha256"] == hashlib.sha256(body).hexdigest()
+    assert (env_output / "SHA256SUMS").read_text() == f"{candidate.digest}  {index['artifact']}\n"
+    encoded, fingerprint = public_key(load_key(key))
+    assert candidate.manifest["publisher_fingerprint"] == fingerprint
+    assert (env_output / "publisher.pub").read_text() == encoded + "\n"
+    with ZipFile(io.BytesIO(body)) as bundle:
+        assert "publisher.key" not in bundle.namelist()
+        assert all(key.read_bytes() not in bundle.read(name) for name in bundle.namelist())
+
+
+@pytest.mark.parametrize(
+    "secret",
+    [None, "", "not-a-base64-private-key!", base64.b64encode(b"too-short-private-key").decode()],
+)
+def test_invalid_ci_signing_secret_fails_without_generating_or_exposing_key(
+    standalone_project: Path, secret: str | None
+) -> None:
+    result = build_cli(
+        standalone_project,
+        "--key-env",
+        "CORP_TEST_SIGNING_KEY",
+        secret=secret,
+    )
+    assert result.returncode == 2
+    assert "signing secret" in result.stderr.lower()
+    assert "CORP_TEST_SIGNING_KEY" in result.stderr
+    if secret:
+        assert secret not in result.stdout + result.stderr
+    assert not (standalone_project / "dist").exists()
+    assert not (standalone_project / ".local/publisher").exists()
