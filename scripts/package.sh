@@ -7,5 +7,6 @@ if [[ "${1:-}" == "build" ]]; then
   [[ -z "$(GIT_OPTIONAL_LOCKS=0 git -C "$MINISHOP_SOURCE" status --porcelain)" ]]
   bash scripts/node.sh npm run check
   bash scripts/node.sh npm run build
+  set -- "$@" --verify-host
 fi
 .venv/bin/python scripts/build-package.py "$@"

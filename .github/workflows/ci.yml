@@ -1,49 +1,56 @@
-name: Plugin checks
+name: Signed plugin package
 on:
   push:
-  pull_request:
+    branches:
+      - "**"
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  check:
+  package:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 10
     env:
-      MINISHOP_SOURCE: ${{ github.workspace }}/.local/minishop
-      KIRO_WHEEL_SOURCE: ${{ github.workspace }}/.local/kiro-wheel
+      PYTHONDONTWRITEBYTECODE: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
         with:
-          version: "0.11.26"
-          enable-cache: false
-      - name: Fetch pinned Minishop inside the workspace
-        run: bash scripts/fetch-minishop.sh
-      - name: Fetch pinned example plugin inside the workspace
-        run: bash scripts/fetch-kiro-wheel.sh
-      - name: Install locked development dependencies
-        run: bash scripts/setup.sh
-      - name: Lint, typecheck, test and build
-        run: bash scripts/check.sh
-      - name: Entitlement contracts against native Minishop and PostgreSQL
-        run: bash scripts/integration-check.sh
-      - name: Validate package lifecycle with a disposable CI publisher key
+          node-version: "24"
+      - name: Install packaging dependencies
         run: |
-          bash scripts/package.sh init-key
-          bash scripts/package-check.sh
-      - name: Start isolated host and validate installed plugin
+          python -m pip install --no-cache-dir -r requirements-build.txt
+          npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build plugin frontend
+        run: npm run build
+      - name: Sign installable plugin package
+        env:
+          MINISHOP_CORP_SIGNING_KEY: ${{ secrets.MINISHOP_CORP_SIGNING_KEY }}
+        run: python scripts/build-package.py build --key-env MINISHOP_CORP_SIGNING_KEY
+      - name: Save installable package and publisher information
+        uses: actions/upload-artifact@v4
+        with:
+          name: minishop-corp-${{ github.sha }}
+          path: dist/release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - name: Show installation information
         run: |
-          bash scripts/stand.sh up
-          bash scripts/stand.sh check
-          bash scripts/browser-check.sh
-      - name: Full Minishop frontend and native plugin APIs
-        run: bash scripts/core-ui-check.sh
-      - name: Host logs
-        if: always()
-        run: bash scripts/stand.sh logs --no-color --tail=100 backend worker
-      - name: Stop only the plugin development stack
-        if: always()
-        run: bash scripts/stand.sh down
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+
+          index = json.loads(Path("dist/release/minishop-plugin.json").read_text())
+          print("Download this run's artifact and extract it.")
+          print(f"Upload **{index['artifact']}** in Minishop → Plugins.")
+          print(f"\nPlugin version: `{index['version']}`")
+          print(f"\nPackage SHA-256: `{index['sha256']}`")
+          print("\nThe outer GitHub artifact ZIP is not the installable plugin ZIP.")
+          PY

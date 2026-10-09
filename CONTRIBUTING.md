@@ -40,6 +40,10 @@ bash scripts/check.sh
 bash scripts/integration-check.sh
 ```
 
+Все эти проверки запускаются локально при разработке. GitHub Actions предназначен
+только для [сборки подписанного установочного артефакта](docs/ci-packaging.md) после
+push в ветку: он не скачивает Minishop/kiro-wheel, не запускает проверки и стенды.
+
 S10 также использует закреплённый `../kiro-wheel` только для чтения; альтернативный
 путь задаётся `KIRO_WHEEL_SOURCE`. Для checkout внутри проекта доступны
 `scripts/fetch-minishop.sh` и `scripts/fetch-kiro-wheel.sh`.
@@ -250,6 +254,12 @@ Manifest пакета объявляет backend entry point, frontend entry poi
 Plugin API и необходимые capabilities. Подписанный ZIP и установочный
 `minishop-plugin.json` формируются скриптом сборки. Не исправляйте хеши, подпись и
 скомпилированные bundles вручную. Ключ издателя принадлежит этому проекту, а не примеру.
+
+Автономный `scripts/build-package.py` не импортирует ядро; зависимости подписи
+закреплены в `requirements-build.txt`. В Actions ключ передаётся только шагу
+подписи через `MINISHOP_CORP_SIGNING_KEY`, без генерации нового ключа на каждый
+запуск. Локальная оболочка `scripts/package.sh build` дополнительно проверяет
+ревизию ядра, TypeScript и пакет штатным `inspect_archive` через `--verify-host`.
 
 Зафиксируйте поддерживаемую версию/ревизию Minishop и проверьте установку, включение,
 перезапуск, обновление миграций и работу worker. Результат прогона на одной ревизии
