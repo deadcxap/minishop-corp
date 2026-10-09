@@ -207,6 +207,17 @@ async def main() -> None:
                 )
             )
 
+        code_path = f"/api/admin/minishop-corp/contracts/{contract.id}/invitations"
+        async with http.post(
+            BASE + code_path,
+            json={"id": str(uuid4()), "kind": "single", "use_limit": 1},
+        ) as response:
+            assert response.status == 201
+            issued = await response.json()
+            saved_code = issued["code"]
+            saved_invite_id = issued["invitation"]["id"]
+            assert saved_code.startswith("CORP-")
+
         async def snapshot() -> list[list[dict[str, object]]]:
             async with factory() as session:
                 tables = ["contracts", "revisions", "invitations", "memberships", "audit"]
@@ -309,7 +320,13 @@ async def main() -> None:
         assert await install(archive) == original
         await enabled(True)
         assert await snapshot() == before
+        async with http.get(BASE + code_path) as response:
+            assert response.status == 200
+            codes = (await response.json())["invitations"]
+            restored = next(row for row in codes if row["id"] == saved_invite_id)
+            assert restored["code"] == saved_code
         print("PASS: reinstall reuses all nine migrations without data loss")
+        print("PASS: authorized invitation list retains the same visible code after reinstall")
 
 
 if __name__ == "__main__":
