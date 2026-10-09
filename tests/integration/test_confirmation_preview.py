@@ -11,8 +11,18 @@ from minishop_corp.integration.code_attempts import FAILURE_SCOPE, CodeAttempts
 from minishop_corp.integration.contracts import ContractHost
 from minishop_corp.invitations_types import OfferReference
 from minishop_corp.memberships import Memberships
-from minishop_corp.storage.schema import Contract, InvitationPreview
+from minishop_corp.storage.schema import (
+    AuditEvent,
+    Contract,
+    Invitation,
+    InvitationPreview,
+    Membership,
+    Operation,
+    Reservation,
+    Revision,
+)
 from pydantic import SecretStr
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from .conftest import USER_ID, Host
@@ -137,6 +147,24 @@ async def test_two_immediate_confirmations_share_one_membership(
             except ContractError as exc:
                 return exc.code
 
-    results = await asyncio.gather(join(), join())
-    assert sum(isinstance(value, UUID) for value in results) == 1
-    assert "minishop_corp_already_member" in results
+    try:
+        results = await asyncio.wait_for(asyncio.gather(join(), join()), timeout=15)
+        assert sum(isinstance(value, UUID) for value in results) == 1
+        assert "minishop_corp_already_member" in results
+    finally:
+        # Concurrent connections commit outside the host fixture's rollback.
+        async with factory.begin() as session:
+            for model in (
+                InvitationPreview,
+                AuditEvent,
+                Reservation,
+                Operation,
+                Membership,
+                Invitation,
+                Revision,
+            ):
+                await session.execute(
+                    delete(model).where(model.contract_id == draft.offer.contract_id)
+                )
+            await session.execute(delete(Contract).where(Contract.id == draft.offer.contract_id))
+            await delete_user_and_relations(session, actor)

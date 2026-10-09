@@ -210,9 +210,35 @@ async def test_upgrade_populated_0004_then_delete_and_replay(host: Host) -> None
         connection = await host.session.connection()
         for migration in migrations()[:4]:
             await connection.run_sync(migration.upgrade)
-        draft = await invitation(host.session)
-        result = await Memberships(ContractHost(host.service)).confirm(host.session, USER_ID, draft)
-        assert result.operation is not None
+        contract = await seed_contract(host.session)
+        contract_id, invite_id, member_id, operation_id = contract.id, uuid4(), uuid4(), uuid4()
+        # Seed the deployed 0004 shape explicitly; current ORM/service code uses
+        # fields and preview tables that this old schema intentionally lacks.
+        values = {
+            "contract": contract_id,
+            "invite": invite_id,
+            "member": member_id,
+            "operation": operation_id,
+            "actor": USER_ID,
+            "reservation": uuid4(),
+        }
+        for statement in (
+            """INSERT INTO ext_minishop_corp_invitations
+                (id, contract_id, kind, code_digest, use_limit, reserved_count, created_by)
+                VALUES (:invite, :contract, 'reusable', repeat('0',64), 5, 1, :actor)""",
+            """INSERT INTO ext_minishop_corp_memberships
+                (id, contract_id, user_id, current_user_id, invitation_id)
+                VALUES (:member, :contract, :actor, :actor, :invite)""",
+            """INSERT INTO ext_minishop_corp_operations
+                (id, contract_id, contract_version, membership_id, membership_generation,
+                user_id, actor_user_id, request_id, kind, target)
+                VALUES (:operation, :contract, 1, :member, 1, :actor, :actor,
+                :operation, 'join', '{}'::jsonb)""",
+            """INSERT INTO ext_minishop_corp_reservations
+                (id, contract_id, invitation_id, operation_id)
+                VALUES (:reservation, :contract, :invite, :operation)""",
+        ):
+            await host.session.execute(text(statement), values)
         # The installed data is committed before a real upgrade. Drain the
         # deferred revision check in this rollback-only test transaction too.
         await host.session.execute(
@@ -243,14 +269,19 @@ async def test_upgrade_populated_0004_then_delete_and_replay(host: Host) -> None
         await connection.run_sync(migrations()[4].upgrade)
         assert await delete_user_and_relations(host.session, USER_ID)
         host.session.expire_all()
-        contract = await host.session.get(Contract, draft.offer.contract_id)
-        member = await host.session.get(Membership, result.operation.membership_id)
-        revision = await host.session.get(Revision, (draft.offer.contract_id, 1))
-        invite = await host.session.get(Invitation, draft.offer.invitation_id)
+        contract = await host.session.get(Contract, contract_id)
+        member = await host.session.get(Membership, member_id)
+        revision = await host.session.get(Revision, (contract_id, 1))
         assert contract is not None and contract.manager_user_id is None
         assert member is not None and member.state == "deleted"
         assert revision is not None and revision.manager_user_id == USER_ID
-        assert invite is not None and invite.reserved_count == 0
+        assert (
+            await host.session.scalar(
+                text("SELECT reserved_count FROM ext_minishop_corp_invitations WHERE id=:invite"),
+                {"invite": invite_id},
+            )
+            == 0
+        )
 
 
 async def test_merge_keeps_target_membership_and_does_not_transfer_manager_role(host: Host) -> None:
