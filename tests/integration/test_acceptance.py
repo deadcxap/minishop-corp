@@ -1,4 +1,4 @@
-"""S10: coexistence, multi-member renewal and loss of a real worker process."""
+"""Core rewards, multi-member renewal and loss of a real worker process."""
 
 import asyncio
 import json
@@ -7,8 +7,9 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from bot.plugins.extensions.contracts import ExtensionContributions
 from bot.plugins.extensions.registry import ExtensionRegistry, get_registry, set_registry
-from bot.plugins.spec import PluginContext
+from bot.plugins.extensions.rewards import Reward, grant
 from bot.services.account_roles import grant_role
 from db.dal import user_dal
 from db.dal.user_merge_dal import delete_user_and_relations
@@ -38,32 +39,37 @@ from .test_reconciliation import due, revise
 pytestmark = pytest.mark.asyncio(loop_scope="session")
 
 
-async def test_actual_kiro_wheel_days_are_reconciled_without_reissuing_reward(host: Host) -> None:
-    # Read-only bind of the pinned example; never a copied/reimplemented reward function.
-    sys.path.insert(0, "/kiro-wheel/backend")
-    from kiro_wheel import KiroWheelPlugin
-    from kiro_wheel.logic import _fulfil
-
+async def test_core_reward_days_are_reconciled_without_reissuing_reward(host: Host) -> None:
     previous = get_registry()
-    wheel = KiroWheelPlugin()
+    owner = "corp-reward-fixture"
     registry = ExtensionRegistry()
-    registry.register(wheel.name, wheel.version, wheel.extensions(PluginContext(host.settings)))
+    registry.register(
+        owner, "1.0.0", ExtensionContributions(permissions=frozenset({"rewards.days"}))
+    )
     set_registry(registry)
     try:
         draft, member_id = await joined(host)
         access = AccessAdapter(host.service)
         before = await access.read(host.session, USER_ID)
         assert before is not None
-        prize = {"kind": "days", "params": {"days": 7}}
+        reward = Reward(kind="days", amount=7)
         key = "acceptance:" + uuid4().hex
-        await _fulfil(host.session, prize, USER_ID, key)
-        await _fulfil(host.session, prize, USER_ID, key)
+        first = await grant(
+            host.session, owner=owner, user_id=USER_ID, idempotency_key=key, reward=reward
+        )
+        repeated = await grant(
+            host.session, owner=owner, user_id=USER_ID, idempotency_key=key, reward=reward
+        )
+        assert repeated.id == first.id
         drifted = await access.read(host.session, USER_ID)
         assert drifted is not None and drifted.end_date == before.end_date + timedelta(days=7)
         # This is the same native sync invoked by Core's extension reward worker.
         assert await host.service.sync_main_traffic_limit_to_panel(host.session, USER_ID)
         assert await execute(host, await due(host, member_id))
-        await _fulfil(host.session, prize, USER_ID, key)
+        repeated = await grant(
+            host.session, owner=owner, user_id=USER_ID, idempotency_key=key, reward=reward
+        )
+        assert repeated.id == first.id
         restored = await access.read(host.session, USER_ID)
         assert restored is not None and restored.end_date == before.end_date
         assert (

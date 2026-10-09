@@ -66,7 +66,6 @@ services:
       - ${MINISHOP_SOURCE:?}/backend:/minishop/backend:ro
       - ${MINISHOP_SOURCE:?}/locales:/minishop/locales:ro
       - ../.local/build-context/core-revision:/minishop/.build-commit:ro
-      - ${KIRO_WHEEL_SOURCE:?}:/kiro-wheel:ro
     environment:
       CORP_INTEGRATION: "1"
       POSTGRES_HOST: postgres
@@ -114,7 +113,7 @@ services:
     environment:
       <<: *environment
       # Browser matrices and preview asset requests share one container IP.
-      # Only this synthetic stand needs a larger native HTTP quota; Q-01 is unchanged.
+      # Only this synthetic stand needs a larger native HTTP quota.
       WEBAPP_RATE_LIMIT_MAX_REQUESTS: "1000"
     command: ["python", "/minishop/backend/plugin_launcher.py", "backend"]
     ports:
