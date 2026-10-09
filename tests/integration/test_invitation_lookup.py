@@ -35,7 +35,9 @@ def lookup(host: Host) -> InvitationLookup:
     return InvitationLookup(ContractHost(host.service))
 
 
-async def test_preview_and_confirmation_use_same_budget_without_consuming_code(host: Host) -> None:
+async def test_preview_confirms_immediately_without_another_guess_or_consumption(
+    host: Host,
+) -> None:
     secret = await code(host)
     now = datetime.now(UTC)
     service = lookup(host)
@@ -51,12 +53,16 @@ async def test_preview_and_confirmation_use_same_budget_without_consuming_code(h
         contract_version=preview.offer.contract.version,
     )
     assert preview.retry_after == 60
-    denied = await lookup(host).inspect(host.session, USER_ID, secret, expected=expected, now=now)
+    confirmed = await lookup(host).inspect(
+        host.session, USER_ID, secret, expected=expected, now=now
+    )
+    assert confirmed.status == 200 and confirmed.retry_after is None
+    denied = await lookup(host).inspect(host.session, USER_ID, secret, now=now)
     assert denied.status == 429 and denied.retry_after == 60
     confirmed = await service.inspect(
         host.session, USER_ID, secret, expected=expected, now=now + timedelta(minutes=1)
     )
-    assert confirmed.status == 200 and confirmed.retry_after == 60
+    assert confirmed.status == 200 and confirmed.retry_after is None
     invitation = await host.session.get(Invitation, expected.invitation_id)
     assert invitation is not None and invitation.used_count == invitation.reserved_count == 0
     assert (

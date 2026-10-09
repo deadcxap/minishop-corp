@@ -1,7 +1,8 @@
 """Corporate attempt intervals over Minishop's persistent throttle DAL.
 
-Call admit before either preview or confirmation, and record_failure only for an
-unavailable code. The caller commits expected error outcomes too; an HTTP exception
+Call admit before a new code check; a persisted successful preview permits immediate
+confirmation of that exact offer. The caller commits expected error outcomes too;
+an HTTP exception
 must not roll back the failure budget. Q-01 counts errors until three idle hours.
 """
 
@@ -203,3 +204,13 @@ class CodeAttempts:
             now=instant,
         )
         return await self._blocked(session, user_id, instant)
+
+    async def confirmation(
+        self, session: AsyncSession, user_id: int, *, now: datetime
+    ) -> AttemptDecision:
+        """A known preview skips only our guessing budget, never the native promo lock."""
+        await self._lock_account(session, user_id)
+        state = await self.state(session, security_dal.PROMO_CODE_APPLY_SCOPE, user_id)
+        if state is not None and state.locked_until is not None and state.locked_until > now:
+            return AttemptDecision(False, max(1, ceil((state.locked_until - now).total_seconds())))
+        return AttemptDecision(True)

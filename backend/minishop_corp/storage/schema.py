@@ -63,6 +63,17 @@ class Invitation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class InvitationPreview(Base):
+    __tablename__ = PREFIX + "previews"
+
+    user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    code_digest: Mapped[str] = mapped_column(String(64))
+    invitation_id: Mapped[UUID]
+    contract_id: Mapped[UUID]
+    contract_version: Mapped[int] = mapped_column(Integer)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class Membership(Base):
     __tablename__ = PREFIX + "memberships"
 

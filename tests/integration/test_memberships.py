@@ -299,7 +299,7 @@ async def test_join_transport_failures_keep_one_reservation(host: Host, failure:
     assert invite is not None and invite.used_count == 1 and invite.reserved_count == 0
 
 
-async def test_http_scopes_validation_and_shared_preview_budget(
+async def test_http_scopes_and_immediate_confirmation_of_verified_preview(
     client: TestClient, host: Host
 ) -> None:
     contract_id = await create_api_contract(client, host)
@@ -317,11 +317,11 @@ async def test_http_scopes_validation_and_shared_preview_budget(
     )
     assert response.status == 200
     response = await client.post(url, json=payload, headers=headers)
-    assert response.status == 429 and int(response.headers["Retry-After"]) >= 59
-    result = await Memberships(ContractHost(host.service)).confirm(
-        host.session, MEMBER, draft, now=datetime.now(UTC) + timedelta(minutes=2)
-    )
+    assert response.status == 202, await response.text()
+    accepted = (await response.json())["operation"]
+    result = await Memberships(ContractHost(host.service)).confirm(host.session, MEMBER, draft)
     assert result.operation is not None
+    assert str(result.operation.id) == accepted["id"]
     assert await execute(host, result.operation.id)
     own_op = USER_PATH + f"/operations/{result.operation.id}"
     assert (await client.get(own_op, headers=authorization(host, OTHER))).status == 404

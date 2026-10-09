@@ -10,6 +10,7 @@ from .migration_0004 import upgrade as shared_reconciliation_sweep
 from .migration_0005 import upgrade as account_deletion
 from .migration_0006 import upgrade as optional_external_squad
 from .migration_0007 import upgrade as optional_manager
+from .migration_0008 import upgrade as invitation_previews
 
 # Fixed, namespaced schema; all constraints/indexes belong to plugin tables.
 INITIAL_DDL = (
@@ -201,5 +202,10 @@ def migrations() -> list[Migration]:
             id="minishop-corp.0007_optional_manager",
             description="Distinguish explicit manager removal from account deletion",
             upgrade=optional_manager,
+        ),
+        Migration(
+            id="minishop-corp.0008_invitation_previews",
+            description="Allow immediate confirmation of a verified invitation",
+            upgrade=invitation_previews,
         ),
     ]

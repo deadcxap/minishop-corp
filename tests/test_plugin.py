@@ -42,6 +42,7 @@ def test_installed_entry_point_and_worker_hooks(context: PluginContext) -> None:
         "minishop-corp.0005_account_deletion",
         "minishop-corp.0006_optional_external_squad",
         "minishop-corp.0007_optional_manager",
+        "minishop-corp.0008_invitation_previews",
     ]
 
 

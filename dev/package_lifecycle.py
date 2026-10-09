@@ -225,7 +225,7 @@ async def main() -> None:
                             "SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'"
                         )
                     )
-                ) == 7
+                ) == 8
                 return rows
 
         before = await snapshot()
@@ -309,7 +309,7 @@ async def main() -> None:
         assert await install(archive) == original
         await enabled(True)
         assert await snapshot() == before
-        print("PASS: reinstall reuses all seven migrations without data loss")
+        print("PASS: reinstall reuses all eight migrations without data loss")
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ from .storage.operations import (
     TrialTarget,
     prepare_operation,
 )
-from .storage.schema import AuditEvent, Contract, Membership, Operation
+from .storage.schema import AuditEvent, Contract, InvitationPreview, Membership, Operation
 
 LIVE_STATES = ("pending", "running", "retry")
 
@@ -173,6 +173,9 @@ class Memberships:
             now=now,
         )
         self._audit(session, operation, "membership_join_requested")
+        preview = await session.get(InvitationPreview, actor)
+        if preview is not None:
+            await session.delete(preview)
         await session.flush()
         return ConfirmationResult(202, operation=operation_info(operation))
 
