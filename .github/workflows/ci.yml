@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: plugin-package-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   package:
     runs-on: ubuntu-24.04
@@ -32,13 +35,28 @@ jobs:
       - name: Sign installable plugin package
         env:
           MINISHOP_CORP_SIGNING_KEY: ${{ secrets.MINISHOP_CORP_SIGNING_KEY }}
-        run: python scripts/build-package.py build --key-env MINISHOP_CORP_SIGNING_KEY
+        run: python scripts/build-package.py build --key-env MINISHOP_CORP_SIGNING_KEY --output .
+      - name: Read generated package index
+        id: index
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          index = json.loads(Path("minishop-plugin.json").read_text())
+          print(f"artifact={index['artifact']}")
+          PY
       - name: Save installable package and publisher information
         uses: actions/upload-artifact@v4
         with:
           name: minishop-corp-${{ github.sha }}
-          path: dist/release/
+          path: |
+            minishop-plugin.json
+            ${{ steps.index.outputs.artifact }}
+            publisher.pub
+            SHA256SUMS
           if-no-files-found: error
+          overwrite: true
           compression-level: 0
           retention-days: 30
       - name: Show installation information
@@ -47,10 +65,30 @@ jobs:
           import json
           from pathlib import Path
 
-          index = json.loads(Path("dist/release/minishop-plugin.json").read_text())
-          print("Download this run's artifact and extract it.")
+          index = json.loads(Path("minishop-plugin.json").read_text())
+          print("The default branch publishes the index and ZIP for installation by repository URL.")
+          print("For a manual installation, download this run's artifact and extract it.")
           print(f"Upload **{index['artifact']}** in Minishop → Plugins.")
           print(f"\nPlugin version: `{index['version']}`")
           print(f"\nPackage SHA-256: `{index['sha256']}`")
           print("\nThe outer GitHub artifact ZIP is not the installable plugin ZIP.")
           PY
+  publish:
+    needs: package
+    if: github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: minishop-corp-${{ github.sha }}
+      - name: Publish index and signed ZIP in one commit
+        env:
+          CORP_PUBLISH_BRANCH: ${{ github.ref_name }}
+          CORP_PUBLISH_SHA: ${{ github.sha }}
+        run: bash scripts/publish-package.sh
