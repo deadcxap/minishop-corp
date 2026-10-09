@@ -5,6 +5,7 @@ import pytest
 from aiohttp.test_utils import TestClient
 from bot.services.account_roles import revoke_role
 from db.dal import user_dal
+from db.dal.user_email_dal import upsert_user_email_address
 from minishop_corp.storage.schema import Membership
 
 from .conftest import EXTERNAL_SQUAD, USER_ID, Host
@@ -65,7 +66,19 @@ async def test_account_selection_uses_native_ids_and_hides_banned_and_private_da
         host.session, MANAGER, {"username": "Fixture", "email": "secret@example.invalid"}
     )
     await user_dal.update_user(host.session, OTHER, {"is_banned": True})
-    for query in ("", "?q=@fixture", "?q=" + str(MANAGER)):
+    await upsert_user_email_address(
+        host.session,
+        user_id=MANAGER,
+        email="alias@example.invalid",
+        verified_at=datetime.now(UTC),
+        source="corp_test",
+    )
+    for query in (
+        "?q=@fixture",
+        "?q=" + str(MANAGER),
+        "?q=SECRET@example.invalid",
+        "?q=alias@example.invalid",
+    ):
         reply = await client.get(BASE + "accounts" + query, headers=authorization(host))
         assert reply.status == 200
         payload = await reply.json()
@@ -74,13 +87,13 @@ async def test_account_selection_uses_native_ids_and_hides_banned_and_private_da
         assert "secret@example.invalid" not in str(payload)
         if query:
             assert identifiers == [MANAGER] and payload["next_page"] is None
-    for query in (str(OTHER), str(2**100), "unknown"):
+    for query in ("", "   ", "fix", "secret@", str(OTHER), str(2**100), "unknown"):
         response = await client.get(BASE + "accounts?q=" + query, headers=authorization(host))
         assert (await response.json())["accounts"] == []
 
 
 @pytest.mark.parametrize(
-    "path", ["tariffs?secret=1", "accounts?page=-1", "accounts?q=" + "x" * 101, "squad?uuid=bad"]
+    "path", ["tariffs?secret=1", "accounts?page=-1", "accounts?q=" + "x" * 321, "squad?uuid=bad"]
 )
 async def test_choices_reject_invalid_queries(client: TestClient, host: Host, path: str) -> None:
     response = await client.get(BASE + path, headers=authorization(host))

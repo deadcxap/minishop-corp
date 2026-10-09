@@ -40,7 +40,7 @@ export async function adminCases(browser) {
     await page.locator('[name="name"]').fill("Contract without a manager");
     await button("save").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.contracts[0].manager_user_id, null);
-    await page.locator('[name="manager"]').selectOption("910011");
+    await page.locator('[name="manager"]').fill("910011"); await button("search").click(); await ready(); await button("confirm_manager").click();
     await button("save").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.contracts[0].manager_user_id, 910011);
     // Keyboard navigation activates the next registered tab and loads its content.
@@ -64,10 +64,10 @@ export async function adminCases(browser) {
     await button("back").click(); await button("new_contract").click(); await ready();
     await page.locator('[name="name"]').fill("New fixture from browser");
     await page.locator('[name="tariff"]').selectOption("corp");
-    await page.locator('[name="ends_at"]').fill("2031-12-15T12:00");
+    await page.locator('[name="ends_at"]').fill("2031-12-15");
     await page.locator('[name="squad"]').fill(SQUAD_ID); await button("verify_squad").click(); await ready();
-    await page.locator('[name="manager"]').selectOption("910011"); await write(button("save")); await ready();
-    assert.equal(api.contracts.length, 2); assert.equal(api.contracts[1].ends_at, "2031-12-15T12:00:00.000Z");
+    await page.locator('[name="manager"]').fill("910011"); await button("search").click(); await ready(); await button("confirm_manager").click(); await write(button("save")); await ready();
+    assert.equal(api.contracts.length, 2); assert.equal(api.contracts[1].ends_at, "2031-12-16T00:00:00.000Z");
     assert.deepEqual(errors, []); await fit(); await page.close(); passed++;
   }
   return passed;

@@ -65,3 +65,7 @@
   .minishop-corp .corp-tabs .corp-button { flex: 1 1 40%; }
   .minishop-corp .corp-heading > .corp-primary { width: 100%; }
 }
+.minishop-corp .corp-stack > .corp-button { align-self: flex-start; }
+.minishop-corp input[type="date"] { max-width: 18rem; }
+.minishop-corp .corp-date-actions { gap: 8px; }
+.minishop-corp .corp-date-actions .corp-button { padding: 8px 10px; }

@@ -34,7 +34,7 @@ export function fixture() {
     ] });
     if (p === "/options/accounts") {
       const q = url.searchParams.get("q");
-      return ok({ accounts: !q || ["910011", "@fixture_manager", "fixture_manager"].includes(q) ? [profile] : [], next_page: null });
+      return ok({ accounts: ["910011", "@fixture_manager", "fixture_manager", "manager@example.invalid"].includes(q) ? [profile] : [], next_page: null });
     }
     if (p === "/options/squad") return url.searchParams.get("uuid") === SQUAD_ID ? ok({ squad: { uuid: SQUAD_ID, name: "Fixture external squad" } }) : fail("minishop_corp_squad_unavailable", 422);
     if (p === "/contracts") {

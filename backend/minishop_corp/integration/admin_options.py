@@ -2,8 +2,9 @@
 
 from uuid import UUID
 
+from db.dal.user_email_dal import get_user_by_verified_email_address
 from db.dal.user_reads_dal import (
-    get_all_users_paginated,
+    get_user_by_email,
     get_user_by_id,
     get_user_by_username,
 )
@@ -33,8 +34,7 @@ class SquadQuery(BaseModel):
 
 class AccountQuery(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    q: str = Field(default="", max_length=100)
-    page: int = Field(default=0, ge=0, le=100_000)
+    q: str = Field(default="", max_length=320)
 
 
 class AccountChoices(BaseModel):
@@ -69,25 +69,25 @@ class AdminOptions:
         return result
 
     async def accounts(self, session: AsyncSession, query: AccountQuery) -> AccountChoices:
-        value = query.q.lstrip("@")
+        value = query.q
         if not value:
-            rows = await get_all_users_paginated(session, page=query.page, page_size=20)
-            next_page = query.page + 1 if len(rows) == 20 else None
+            return AccountChoices(accounts=[], next_page=None)
+        if "@" in value and not value.startswith("@"):
+            row = await get_user_by_verified_email_address(session, value)
+            if row is None:
+                row = await get_user_by_email(session, value)
+        elif value.removeprefix("-").isdecimal():
+            identifier = int(value) if len(value) <= 20 else 2**63
+            row = (
+                await get_user_by_id(session, identifier)
+                if -(2**63) <= identifier < 2**63
+                else None
+            )
         else:
-            if value.removeprefix("-").isdecimal():
-                identifier = int(value) if len(value) <= 20 else 2**63
-                row = (
-                    await get_user_by_id(session, identifier)
-                    if -(2**63) <= identifier < 2**63
-                    else None
-                )
-            else:
-                row = await get_user_by_username(session, value)
-            rows = [row] if row is not None else []
-            next_page = None
+            row = await get_user_by_username(session, value)
         return AccountChoices(
-            accounts=[
-                ProfileRecord.model_validate(row).public() for row in rows if not row.is_banned
-            ],
-            next_page=next_page,
+            accounts=[ProfileRecord.model_validate(row).public()]
+            if row is not None and not row.is_banned
+            else [],
+            next_page=None,
         )

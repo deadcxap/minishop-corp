@@ -35,17 +35,17 @@ function setup(context) {
 
 test("editor preserves draft on host updates and sends UTC with a stable create ID after network loss", async (context) => {
   const { api, target, view, click, fill, submit } = setup(context); await flush(); await click("Create contract");
-  fill("name", "New corporate fixture"); fill("tariff", "corp"); fill("ends_at", "2031-11-12T10:11:12.123"); fill("manager", "910011");
+  fill("name", "New corporate fixture"); fill("tariff", "corp"); fill("ends_at", "2031-11-12"); fill("manager", "910011"); await click("Find account"); await click("Confirm manager");
   fill("squad", SQUAD_ID); await click("Verify squad");
   admin.updateView(view, { currentLang: "ru" });
   assert.equal(target.querySelector('[name="name"]').value, "New corporate fixture");
-  assert.equal(target.querySelector('[name="ends_at"]').value, "2031-11-12T10:11:12.123");
+  assert.equal(target.querySelector('[name="ends_at"]').value, "2031-11-12");
   api.loseNextWrite = true; await submit();
   assert.match(target.textContent, /Запрос мог выполниться/);
   await click("Повторить тот же запрос");
   const writes = api.calls.filter((row) => row.method === "POST" && row.path === "/contracts");
   assert.equal(writes.length, 2); assert.deepEqual(writes[0].body, writes[1].body);
-  assert.equal(writes[0].body.ends_at, "2031-11-12T10:11:12.123Z");
+  assert.equal(writes[0].body.ends_at, "2031-11-13T00:00:00.000Z");
   assert.equal(api.contracts.length, 2); assert.match(target.textContent, /Условия сохранены/);
 });
 
@@ -71,7 +71,7 @@ test("a contract with a deleted manager stays editable and allows assigning a re
   fill("name", "Contract without a manager"); await submit(); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.contracts[0].manager_user_id, null);
   assert.equal(api.contracts[0].name, "Contract without a manager");
-  fill("manager", "910011"); await submit(); await click("Confirm", target.querySelector("dialog"));
+  fill("manager", "910011"); await click("Find account"); await click("Confirm manager"); await submit(); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.contracts[0].manager_user_id, 910011);
   assert.doesNotMatch(target.textContent, /manager account was deleted/);
 });
@@ -81,7 +81,7 @@ test("reloading after manager deletion clears the stale account selection", asyn
   assert.equal(target.querySelector('[name="manager"]').value, "910011");
   api.contracts[0].manager_user_id = null; await click("Load saved terms");
   assert.equal(target.querySelector('[name="manager"]').value, "");
-  assert.equal(target.querySelector('[name="account_query"]').value, "");
+  assert.equal(target.querySelector('[name="account_query"]'), null);
   assert.match(target.textContent, /manager account was deleted/);
 });
 
@@ -164,4 +164,44 @@ test("an optional squad can be cleared and the saved null is decoded on reopenin
   await click("Back to contracts"); await click(api.contracts[0].name);
   assert.equal(target.querySelector('[name="squad"]').value, "");
   assert.equal(target.querySelector('[name="squad"]').required, false);
+});
+
+test("new form defaults to today, has no refresh or user directory, and requires manager confirmation", async (context) => {
+  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  const today = new Date();
+  const expected = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  assert.equal(target.querySelector('[name="ends_at"]').value, expected);
+  assert.equal(target.querySelector('[name="ends_at"]').type, "date");
+  assert.ok(![...target.querySelectorAll("button")].some((v) => v.textContent === "Refresh"));
+  assert.ok(!api.calls.some((v) => v.path === "/options/accounts"));
+  assert.equal(target.querySelector('select[name="manager"]'), null);
+  assert.equal(target.querySelector('[name="manager"]').placeholder, "Minishop ID, @username or email");
+  fill("name", "Selected manager"); fill("tariff", "corp"); fill("manager", "manager@example.invalid");
+  await click("Find account"); await submit();
+  assert.match(target.textContent, /confirm the manager selection/);
+  assert.ok(!api.calls.some((v) => v.method === "POST"));
+  await click("Confirm manager"); await submit();
+  assert.equal(api.contracts[1].manager_user_id, 910011);
+  assert.equal(api.contracts[1].external_squad_uuid, null);
+});
+
+test("date shortcuts use the selected date, calendar months and leap-year clamping", async (context) => {
+  const { target, click, fill } = setup(context); await flush(); await click("Create contract");
+  for (const [start, label, expected] of [
+    ["2031-01-31", "+month", "2031-02-28"], ["2032-01-31", "+month", "2032-02-29"],
+    ["2032-02-29", "+year", "2033-02-28"], ["2031-10-31", "+3 months", "2032-01-31"],
+    ["2031-08-31", "+6 months", "2032-02-29"], ["2031-12-31", "+day", "2032-01-01"],
+    ["2031-12-28", "+week", "2032-01-04"],
+  ]) {
+    fill("ends_at", start); await click(label); assert.equal(target.querySelector('[name="ends_at"]').value, expected);
+  }
+});
+
+test("editing another field preserves a legacy exact expiry until the date is explicitly changed", async (context) => {
+  const { api, target, click, fill, submit, open } = setup(context); await open();
+  const original = api.contracts[0].ends_at;
+  fill("name", "Keep exact expiry"); await submit(); await click("Confirm", target.querySelector("dialog"));
+  assert.equal(api.contracts[0].ends_at, original);
+  fill("ends_at", "2031-10-15"); await submit(); await click("Confirm", target.querySelector("dialog"));
+  assert.equal(api.contracts[0].ends_at, "2031-10-16T00:00:00.000Z");
 });
