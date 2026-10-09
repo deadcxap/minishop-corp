@@ -10,7 +10,9 @@ x-runtime: &runtime
   read_only: true
   working_dir: /runtime
   volumes:
-    - ${MINISHOP_SOURCE:?Run through scripts/stand.sh}:/minishop:ro
+    - ${MINISHOP_SOURCE:?Run through scripts/stand.sh}/backend:/minishop/backend:ro
+    - ${MINISHOP_SOURCE:?}/locales:/minishop/locales:ro
+    - ../.local/build-context/core-revision:/minishop/.build-commit:ro
     - ../.local/runtime:/runtime
     - ../.local/package:/package:ro
     - ../dev:/corp-dev:ro
@@ -61,7 +63,9 @@ services:
     volumes:
       - ..:/workspace:ro
       - ../.local/integration:/workspace/.local
-      - ${MINISHOP_SOURCE:?}:/minishop:ro
+      - ${MINISHOP_SOURCE:?}/backend:/minishop/backend:ro
+      - ${MINISHOP_SOURCE:?}/locales:/minishop/locales:ro
+      - ../.local/build-context/core-revision:/minishop/.build-commit:ro
       - ${KIRO_WHEEL_SOURCE:?}:/kiro-wheel:ro
     environment:
       CORP_INTEGRATION: "1"

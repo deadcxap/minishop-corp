@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/env.sh"
+bash scripts/check-minishop.sh
 export CORP_UID="$(id -u)" CORP_GID="$(id -g)"
 export CORP_PACKAGE_RUN="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
 target="$CORP_ROOT/.local/package-check/$CORP_PACKAGE_RUN"
@@ -10,6 +11,7 @@ mkdir -p "$target/runtime/data" "$target/runtime/tmp" .local/build-context
 bash scripts/package.sh build --key "$key" --output "$target/release"
 .venv/bin/python dev/make-package-upgrade.py "$key" "$target/upgrade.zip"
 cp "$MINISHOP_SOURCE/backend/requirements.txt" .local/build-context/requirements.txt
+git -C "$MINISHOP_SOURCE" rev-parse HEAD > .local/build-context/core-revision
 for directory in backend locales; do
   ln -s "/minishop/$directory" "$target/runtime/$directory"
 done

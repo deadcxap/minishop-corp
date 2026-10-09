@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/env.sh"
+bash scripts/check-minishop.sh
 export CORP_UID="$(id -u)" CORP_GID="$(id -g)"
 # Copy tracked build inputs, never install dependencies or generate assets in the source repository.
 .venv/bin/python - <<'PY'

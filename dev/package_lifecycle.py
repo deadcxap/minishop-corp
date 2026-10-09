@@ -10,7 +10,12 @@ from uuid import UUID, uuid4
 
 import aiohttp
 from bot.app.web.webapp_auth import create_webapp_session_token
-from bot.plugins.packages import managed_entry_points, package_root, read_state
+from bot.plugins.packages import (
+    _running_core_revision,
+    managed_entry_points,
+    package_root,
+    read_state,
+)
 from bot.services.account_roles import grant_role
 from config.settings import get_settings
 from db.dal import user_dal
@@ -42,6 +47,9 @@ async def ready() -> None:
 
 
 async def main() -> None:
+    pin = json.loads(await asyncio.to_thread(Path("/corp-dev/minishop.json").read_text))
+    revision = await asyncio.to_thread(_running_core_revision)
+    assert revision == pin["revision"], "Host must expose the pinned release commit"
     settings = get_settings()
     assert settings.POSTGRES_DB == "corp_dev" and settings.POSTGRES_HOST == "postgres"
     assert str(package_root()).startswith("/runtime/")
