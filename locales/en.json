@@ -50,7 +50,7 @@
   "admin_minishop_corp_empty_contracts": "No contracts yet. Create your first corporate contract.",
   "admin_minishop_corp_empty_members": "No members yet.",
   "admin_minishop_corp_empty_invitations": "No invitations yet.",
-  "admin_minishop_corp_empty_accounts": "Account not found. Enter an exact Minishop ID, @username or email.",
+  "admin_minishop_corp_empty_accounts": "Account not found. Enter the full Minishop ID (ms_…), Telegram ID, @username or email.",
   "admin_minishop_corp_no_tariffs": "No period plans are available. Add a plan in Minishop settings.",
   "admin_minishop_corp_active": "Active",
   "admin_minishop_corp_expired": "Expired",
@@ -64,10 +64,11 @@
   "admin_minishop_corp_choose": "Select…",
   "admin_minishop_corp_ends_at": "Valid through",
   "admin_minishop_corp_date_hint": "Until the end of the selected day. Browser time zone: {timezone}.",
-  "admin_minishop_corp_manager": "Contract manager",
+  "admin_minishop_corp_manager": "Contract manager (optional)",
   "admin_minishop_corp_manager_hint": "Assigning a manager does not change their subscription or grant store administrator permissions.",
-  "admin_minishop_corp_manager_missing": "The manager account was deleted. Assign a new manager. Members and contract terms have been preserved.",
-  "admin_minishop_corp_account_query": "Minishop ID, @username or email",
+  "admin_minishop_corp_manager_missing": "No manager assigned. The store administrator manages this contract in the admin panel.",
+  "admin_minishop_corp_clear_manager": "Leave without a manager",
+  "admin_minishop_corp_account_query": "Minishop ID, Telegram ID, @username or email",
   "admin_minishop_corp_search": "Find account",
   "admin_minishop_corp_squad": "External squad UUID (optional)",
   "admin_minishop_corp_squad_hint": "Leave empty to use native Minishop settings. To override them, enter an external squad UUID and verify its name.",
@@ -207,5 +208,7 @@
   "admin_minishop_corp_manager_selected": "Selected manager",
   "admin_minishop_corp_manager_required": "Find an account and confirm the manager selection.",
   "admin_minishop_corp_invalid_date": "Enter a valid expiry date.",
-  "admin_minishop_corp_retry_load": "Retry loading"
+  "admin_minishop_corp_retry_load": "Retry loading",
+  "minishop_corp_account_ambiguous": "This number matches different accounts. Use a Minishop ID (ms_…), @username or email.",
+  "admin_minishop_corp_telegram_id": "Telegram ID"
 }

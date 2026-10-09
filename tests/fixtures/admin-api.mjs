@@ -2,6 +2,8 @@
 export const CONTRACT_ID = "30000000-0000-4000-8000-000000000001";
 export const SQUAD_ID = "20000000-0000-4000-8000-000000000001";
 export const MEMBER_ID = "50000000-0000-4000-8000-000000000001";
+export const MINISHOP_ID = "ms_40000000000040008000000000000001";
+export const TELEGRAM_ID = 771234567;
 export const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aTgAAAABJRU5ErkJggg==";
 const now = "2030-01-01T00:00:00Z";
 const profile = { user_id: 910011, first_name: "Fixture", last_name: "Manager", username: "fixture_manager", telegram_url: "https://t.me/fixture_manager" };
@@ -35,7 +37,8 @@ export function fixture() {
     ] });
     if (p === "/options/accounts") {
       const q = url.searchParams.get("q");
-      return ok({ accounts: ["910011", "@fixture_manager", "fixture_manager", "manager@example.invalid"].includes(q) ? [profile] : [], next_page: null });
+      const found = url.searchParams.get("user_id") === String(profile.user_id) || ["910011", String(TELEGRAM_ID), MINISHOP_ID, "@fixture_manager", "fixture_manager", "manager@example.invalid"].includes(q);
+      return ok({ accounts: found ? [{ ...profile, minishop_id: MINISHOP_ID, telegram_id: TELEGRAM_ID }] : [], next_page: null });
     }
     if (p === "/options/squad") return url.searchParams.get("uuid") === SQUAD_ID ? ok({ squad: { uuid: SQUAD_ID, name: "Fixture external squad" } }) : fail("minishop_corp_squad_unavailable", 422);
     if (p === "/contracts") {

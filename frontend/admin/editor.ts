@@ -47,8 +47,9 @@ export class Editor extends Panel {
   async load(): Promise<void> {
     this.tariffs = list((await this.api.request("/options/tariffs")).tariffs, tariff);
     if (this.managerId !== null) {
-      const result = await this.api.request(`/options/accounts?q=${this.managerId}`);
+      const result = await this.api.request(`/options/accounts?user_id=${this.managerId}`);
       this.selected = list(result.accounts, account).find((row) => row.user_id === this.managerId) ?? null;
+      if (this.selected && this.query === String(this.managerId)) this.query = this.selected.minishop_id;
     }
     this.loaded = true;
     if (/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(this.squadId) && !this.verified) {
@@ -59,7 +60,7 @@ export class Editor extends Panel {
   dirty(): boolean {
     const old = this.original;
     return old ? this.name !== old.name || this.tariffKey !== old.tariff_key || this.squadId !== (old.external_squad_uuid ?? "")
-      || this.managerId !== old.manager_user_id || this.query !== (old.manager_user_id === null ? "" : String(old.manager_user_id)) || this.endTouched
+      || this.managerId !== old.manager_user_id || (this.managerId === null && Boolean(this.query.trim())) || this.endTouched
       : Boolean(this.name || this.tariffKey || this.managerId || this.squadId || this.query || this.end !== this.initialEnd);
   }
   async search(): Promise<void> {
@@ -69,7 +70,7 @@ export class Editor extends Panel {
   }
   async submit(): Promise<void> {
     if (this.squadId && this.verified?.uuid !== this.squadId) { this.error = new ApiError("admin_minishop_corp_squad_required", 400); this.render(); return; }
-    if (this.managerId === null && (this.original?.manager_user_id !== null || this.query.trim())) {
+    if (this.managerId === null && this.query.trim()) {
       this.error = new ApiError("admin_minishop_corp_manager_required", 400); this.render(); return;
     }
     let expiry: string;
@@ -98,7 +99,7 @@ export class Editor extends Panel {
       this.original = result; this.name = result.name; this.tariffKey = result.tariff_key;
       this.end = expiryDay(result.ends_at); this.endTouched = false;
       this.managerId = result.manager_user_id; this.squadId = result.external_squad_uuid ?? "";
-      this.query = this.managerId === null ? "" : String(this.managerId);
+      this.query = this.managerId === null ? "" : this.selected?.minishop_id ?? String(this.managerId);
       this.pending = null;
       this.notice = "admin_minishop_corp_saved";
       if (this.alive) this.saved(result);
@@ -144,22 +145,24 @@ export class Editor extends Panel {
       }));
       if (this.verified?.uuid === this.squadId) squadBox.append(el("p", `${this.t("squad_verified")}: ${this.verified.name}`, "corp-notice"));
       const managers = el("div", undefined, "corp-wide corp-stack");
-      if (this.original?.manager_user_id === null) managers.append(el("p", this.t("manager_missing"), "corp-alert"));
+      if (this.managerId === null && !this.query.trim()) managers.append(el("p", this.t("manager_missing"), "corp-footnote"));
       const search = input("manager", this.query, (v) => {
         this.query = v; this.managerId = null; this.selected = null; this.candidate = null; this.searched = false; this.render();
       }); search.maxLength = 320; search.placeholder = this.t("account_query"); search.autocomplete = "off";
-      search.required = this.original?.manager_user_id !== null;
       search.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); void this.run(() => this.search()); } });
       managers.append(field(this.t("manager"), search, this.t("manager_hint")));
       const find = button(this.t("search"), () => { void this.run(() => this.search()); }); find.disabled = !this.query.trim(); managers.append(find);
+      if (this.managerId !== null || this.query) managers.append(button(this.t("clear_manager"), () => {
+        this.managerId = null; this.query = ""; this.selected = null; this.candidate = null; this.searched = false; this.render();
+      }));
       if (this.candidate) {
         const candidate = this.candidate;
         const result = el("div", undefined, "corp-card");
-        result.append(el("p", `${person(candidate)} · #${candidate.user_id}${candidate.username ? ` · @${candidate.username}` : ""}`),
+        result.append(el("p", `${person(candidate)} · ${candidate.minishop_id}${candidate.username ? ` · @${candidate.username}` : ""}${candidate.telegram_id ? ` · ${this.t("telegram_id")}: ${candidate.telegram_id}` : ""}`),
           button(this.t("confirm_manager"), () => { this.managerId = candidate.user_id; this.selected = candidate; this.candidate = null; this.render(); }));
         managers.append(result);
       } else if (this.searched && !this.selected) managers.append(el("p", this.t("empty_accounts")));
-      if (this.managerId !== null) managers.append(el("p", `${this.t("manager_selected")}: ${this.selected ? person(this.selected) : ""} · #${this.managerId}`, "corp-notice"));
+      if (this.managerId !== null) managers.append(el("p", `${this.t("manager_selected")}: ${this.selected ? person(this.selected) : ""} · ${this.selected?.minishop_id ?? "#" + this.managerId}`, "corp-notice"));
       const save = el("button", this.t("save"), "corp-button corp-primary"); save.type = "submit";
       form.append(squadBox, managers, save);
       form.addEventListener("submit", (event) => { event.preventDefault(); if (form.reportValidity()) void this.submit(); });

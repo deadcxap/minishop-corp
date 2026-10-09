@@ -71,10 +71,11 @@ async def main() -> None:
                         "'minishop-corp.0003_membership_reconciliation', "
                         "'minishop-corp.0004_shared_reconciliation_sweep', "
                         "'minishop-corp.0005_account_deletion', "
-                        "'minishop-corp.0006_optional_external_squad')"
+                        "'minishop-corp.0006_optional_external_squad', "
+                        "'minishop-corp.0007_optional_manager')"
                     )
                 )
-                == 6
+                == 7
             )
 
         async def get(path: str, user_id: int, expected: int = 200) -> dict[str, object]:

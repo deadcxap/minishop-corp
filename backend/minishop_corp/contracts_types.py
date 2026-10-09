@@ -43,7 +43,7 @@ class ContractTerms(BaseModel):
 
 class CreateContract(ContractTerms):
     id: UUID
-    manager_user_id: AccountId
+    manager_user_id: AccountId | None = None
 
 
 class UpdateContract(ContractTerms):

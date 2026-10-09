@@ -93,7 +93,15 @@ async def test_account_selection_uses_native_ids_and_hides_banned_and_private_da
 
 
 @pytest.mark.parametrize(
-    "path", ["tariffs?secret=1", "accounts?page=-1", "accounts?q=" + "x" * 321, "squad?uuid=bad"]
+    "path",
+    [
+        "tariffs?secret=1",
+        "accounts?page=-1",
+        "accounts?q=" + "x" * 321,
+        "squad?uuid=bad",
+        "accounts?q=fixture&user_id=1",
+        "accounts?user_id=invalid",
+    ],
 )
 async def test_choices_reject_invalid_queries(client: TestClient, host: Host, path: str) -> None:
     response = await client.get(BASE + path, headers=authorization(host))
@@ -138,3 +146,55 @@ async def test_draft_context_exposes_only_current_admin_identity(
     assert response.headers["Cache-Control"] == "private, no-store"
     assert not host.panel.requests
     assert (await client.get(BASE + "context?user_id=1", headers=authorization(host))).status == 400
+
+
+async def test_public_and_telegram_ids_resolve_to_the_canonical_account(
+    client: TestClient, host: Host
+) -> None:
+    telegram_id = 770001234
+    await user_dal.update_user(host.session, MANAGER, {"telegram_id": telegram_id})
+    user = await user_dal.get_user_by_id(host.session, MANAGER)
+    assert user is not None
+    public_id = str(user.minishop_id)
+    assert public_id.startswith("ms_") and telegram_id != MANAGER
+    for selector in (
+        {"q": public_id},
+        {"q": public_id.upper()},
+        {"q": str(telegram_id)},
+        {"q": str(MANAGER)},
+        {"user_id": str(MANAGER)},
+    ):
+        response = await client.get(BASE + "accounts", params=selector, headers=authorization(host))
+        assert response.status == 200, await response.text()
+        rows = (await response.json())["accounts"]
+        assert len(rows) == 1 and rows[0]["user_id"] == MANAGER
+        assert rows[0]["minishop_id"] == public_id and rows[0]["telegram_id"] == telegram_id
+    for value in (public_id[:-1], "ms_invalid", str(telegram_id + 1)):
+        response = await client.get(
+            BASE + "accounts", params={"q": value}, headers=authorization(host)
+        )
+        assert (await response.json())["accounts"] == []
+    await user_dal.update_user(host.session, MANAGER, {"is_banned": True})
+    for value in (public_id, str(telegram_id)):
+        response = await client.get(
+            BASE + "accounts", params={"q": value}, headers=authorization(host)
+        )
+        assert (await response.json())["accounts"] == []
+    assert not host.panel.requests
+
+
+async def test_number_collision_requires_an_unambiguous_selector(
+    client: TestClient, host: Host
+) -> None:
+    await user_dal.update_user(host.session, MANAGER, {"telegram_id": 770002345})
+    await user_dal.update_user(host.session, OTHER, {"telegram_id": MANAGER})
+    response = await client.get(
+        BASE + "accounts", params={"q": str(MANAGER)}, headers=authorization(host)
+    )
+    assert response.status == 422
+    assert (await response.json())["error"] == "minishop_corp_account_ambiguous"
+    # Reopening a saved assignment uses an explicit internal-id selector.
+    response = await client.get(
+        BASE + "accounts", params={"user_id": str(MANAGER)}, headers=authorization(host)
+    )
+    assert [row["user_id"] for row in (await response.json())["accounts"]] == [MANAGER]

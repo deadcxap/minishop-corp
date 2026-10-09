@@ -50,7 +50,7 @@
   "admin_minishop_corp_empty_contracts": "Контрактов пока нет. Создайте первый корпоративный контракт.",
   "admin_minishop_corp_empty_members": "Участников пока нет.",
   "admin_minishop_corp_empty_invitations": "Приглашений пока нет.",
-  "admin_minishop_corp_empty_accounts": "Аккаунт не найден. Укажите точный ID Minishop, @username или email.",
+  "admin_minishop_corp_empty_accounts": "Аккаунт не найден. Укажите полный ID Minishop (ms_…), Telegram ID, @username или email.",
   "admin_minishop_corp_no_tariffs": "Нет доступных period-тарифов. Добавьте тариф в настройках Minishop.",
   "admin_minishop_corp_active": "Действует",
   "admin_minishop_corp_expired": "Истёк",
@@ -64,10 +64,11 @@
   "admin_minishop_corp_choose": "Выберите…",
   "admin_minishop_corp_ends_at": "Действует по дату включительно",
   "admin_minishop_corp_date_hint": "До конца выбранного дня. Часовой пояс браузера: {timezone}.",
-  "admin_minishop_corp_manager": "Управляющий контрактом",
+  "admin_minishop_corp_manager": "Управляющий контрактом (необязательно)",
   "admin_minishop_corp_manager_hint": "Выбор управляющего не меняет его подписку и не даёт прав администратора магазина.",
-  "admin_minishop_corp_manager_missing": "Аккаунт управляющего удалён. Назначьте нового управляющего. Участники и условия контракта сохранены.",
-  "admin_minishop_corp_account_query": "ID Minishop, @username или email",
+  "admin_minishop_corp_manager_missing": "Управляющий не назначен. Контрактом управляет администратор магазина через админку.",
+  "admin_minishop_corp_clear_manager": "Не назначать управляющего",
+  "admin_minishop_corp_account_query": "ID Minishop, Telegram ID, @username или email",
   "admin_minishop_corp_search": "Найти аккаунт",
   "admin_minishop_corp_squad": "UUID внешнего сквада (необязательно)",
   "admin_minishop_corp_squad_hint": "Оставьте пустым для штатных настроек Minishop. Если нужен корпоративный сквад, вставьте UUID и проверьте его название.",
@@ -207,5 +208,7 @@
   "admin_minishop_corp_manager_selected": "Управляющий выбран",
   "admin_minishop_corp_manager_required": "Найдите аккаунт и подтвердите выбор управляющего.",
   "admin_minishop_corp_invalid_date": "Укажите корректную дату окончания.",
-  "admin_minishop_corp_retry_load": "Повторить загрузку"
+  "admin_minishop_corp_retry_load": "Повторить загрузку",
+  "minishop_corp_account_ambiguous": "Число соответствует разным аккаунтам. Используйте ID Minishop (ms_…), @username или email.",
+  "admin_minishop_corp_telegram_id": "Telegram ID"
 }

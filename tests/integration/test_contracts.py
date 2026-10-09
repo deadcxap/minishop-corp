@@ -33,7 +33,7 @@ ADMIN_PATH = "/api/admin/minishop-corp/contracts"
 USER_PATH = "/api/plugins/minishop-corp"
 
 
-def draft(*, manager: int = MANAGER) -> dict[str, object]:
+def draft(*, manager: int | None = MANAGER) -> dict[str, object]:
     return {
         "id": str(uuid4()),
         "name": "Contract fixture",
@@ -357,4 +357,4 @@ async def test_native_delete_manager_keeps_an_editable_contract(
     response = await client.post(
         ADMIN_PATH, json={**draft(), "manager_user_id": None}, headers=authorization(host)
     )
-    assert response.status == 400
+    assert response.status == 201

@@ -1,7 +1,8 @@
 import { boolean, choice, list, nullable, number, object, string } from "../shared/api";
 import type { OperationInfo } from "../shared/members";
 import { operation } from "../shared/members-data";
-export { operation, member, avatar, account } from "../shared/members-data";
+import { account as profile } from "../shared/members-data";
+export { operation, member, avatar } from "../shared/members-data";
 
 export interface Contract {
   id: string; name: string; ends_at: string; version: number; expired: boolean;
@@ -11,7 +12,7 @@ export interface Terms {
   name: string; tariff_key: string; external_squad_uuid: string | null; ends_at: string; manager_user_id: number | null;
 }
 export interface Tariff { key: string; names: { ru: string; en: string }; hidden: boolean }
-export interface Account { user_id: number; first_name: string | null; last_name: string | null; username: string | null }
+export interface Account { user_id: number; first_name: string | null; last_name: string | null; username: string | null; minishop_id: string; telegram_id: number | null }
 export interface Squad { uuid: string; name: string }
 export interface Invitation {
   id: string; kind: "single" | "reusable"; used_count: number; reserved_count: number;
@@ -43,6 +44,10 @@ export function sameTerms(a: Terms, b: Terms): boolean {
 export function tariff(value: unknown): Tariff {
   const v = object(value), names = object(v.names);
   return { key: string(v.key), names: { ru: string(names.ru), en: string(names.en) }, hidden: boolean(v.hidden) };
+}
+export function account(value: unknown): Account {
+  const v = object(value);
+  return { ...profile(v), minishop_id: string(v.minishop_id), telegram_id: nullable(v.telegram_id, number) };
 }
 export function squad(value: unknown): Squad {
   const v = object(value);

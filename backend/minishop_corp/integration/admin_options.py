@@ -6,9 +6,12 @@ from db.dal.user_email_dal import get_user_by_verified_email_address
 from db.dal.user_reads_dal import (
     get_user_by_email,
     get_user_by_id,
+    get_user_by_telegram_id,
     get_user_by_username,
 )
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from db.models import User
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..contracts_types import ContractError
@@ -35,10 +38,33 @@ class SquadQuery(BaseModel):
 class AccountQuery(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     q: str = Field(default="", max_length=320)
+    user_id: int | None = Field(default=None, ge=-(2**63), le=2**63 - 1)
+
+    @model_validator(mode="after")
+    def one_selector(self) -> "AccountQuery":
+        if self.q and self.user_id is not None:
+            raise ValueError("Use a single account selector")
+        return self
+
+
+class AccountChoice(MemberProfile):
+    minishop_id: str
+    telegram_id: int | None
+
+
+class AccountRecord(ProfileRecord):
+    minishop_id: str
+
+    def choice(self) -> AccountChoice:
+        return AccountChoice(
+            **self.public().model_dump(),
+            minishop_id=self.minishop_id,
+            telegram_id=self.telegram_id,
+        )
 
 
 class AccountChoices(BaseModel):
-    accounts: list[MemberProfile]
+    accounts: list[AccountChoice]
     next_page: int | None
 
 
@@ -70,9 +96,17 @@ class AdminOptions:
 
     async def accounts(self, session: AsyncSession, query: AccountQuery) -> AccountChoices:
         value = query.q
-        if not value:
+        if query.user_id is not None:
+            # Reopening a stored assignment uses its canonical internal identity,
+            # which must not be confused with another account's Telegram id.
+            row = await get_user_by_id(session, query.user_id)
+        elif not value:
             return AccountChoices(accounts=[], next_page=None)
-        if "@" in value and not value.startswith("@"):
+        elif value.lower().startswith("ms_"):
+            # Minishop 3.8.1 has no public-id DAL helper. Use the same exact
+            # read-only model query as its native admin user detail endpoint.
+            row = await session.scalar(select(User).where(User.minishop_id == value.lower()))
+        elif "@" in value and not value.startswith("@"):
             row = await get_user_by_verified_email_address(session, value)
             if row is None:
                 row = await get_user_by_email(session, value)
@@ -83,10 +117,18 @@ class AdminOptions:
                 if -(2**63) <= identifier < 2**63
                 else None
             )
+            telegram = (
+                await get_user_by_telegram_id(session, identifier)
+                if 0 < identifier < 2**63
+                else None
+            )
+            if row is not None and telegram is not None and row.user_id != telegram.user_id:
+                raise ContractError("minishop_corp_account_ambiguous", 422)
+            row = row if row is not None else telegram
         else:
             row = await get_user_by_username(session, value)
         return AccountChoices(
-            accounts=[ProfileRecord.model_validate(row).public()]
+            accounts=[AccountRecord.model_validate(row).choice()]
             if row is not None and not row.is_banned
             else [],
             next_page=None,

@@ -54,7 +54,10 @@ class Contracts:
     ) -> tuple[ContractDetails, bool]:
         await self.host.require_admin(session, actor)
         # Serialize retries for this actor and protect the manager from deletion before the FK.
-        await self.host.lock_accounts(session, [actor, draft.manager_user_id])
+        accounts = [actor]
+        if draft.manager_user_id is not None:
+            accounts.append(draft.manager_user_id)
+        await self.host.lock_accounts(session, accounts)
         existing = await session.get(Contract, draft.id, populate_existing=True)
         terms = ContractTerms.model_validate(draft.model_dump(exclude={"id"}))
         if existing is not None:
@@ -79,8 +82,6 @@ class Contracts:
         row = await self._get(session, contract_id, lock=True)
         if row.version != draft.expected_version:
             raise ContractError("minishop_corp_version_conflict", 409)
-        if draft.manager_user_id is None and row.manager_user_id is not None:
-            raise ContractError("minishop_corp_account_unavailable", 422)
         terms = ContractTerms.model_validate(draft.model_dump(exclude={"expected_version"}))
         if terms == terms_of(row):
             return await self._details(session, row)

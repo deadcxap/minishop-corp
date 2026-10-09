@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import en from "../../locales/en.json" with { type: "json" };
 import ru from "../../locales/ru.json" with { type: "json" };
-import { fixture, CONTRACT_ID, SQUAD_ID } from "../fixtures/admin-api.mjs";
+import { fixture, CONTRACT_ID, SQUAD_ID, MINISHOP_ID, TELEGRAM_ID } from "../fixtures/admin-api.mjs";
 
 export async function adminCases(browser) {
   let passed = 0;
@@ -40,7 +40,7 @@ export async function adminCases(browser) {
     await page.locator('[name="name"]').fill("Contract without a manager");
     await button("save").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.contracts[0].manager_user_id, null);
-    await page.locator('[name="manager"]').fill("910011"); await button("search").click(); await ready(); await button("confirm_manager").click();
+    await page.locator('[name="manager"]').fill(MINISHOP_ID); await button("search").click(); await ready(); await snap("manager-choice"); await button("confirm_manager").click();
     await button("save").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.contracts[0].manager_user_id, 910011);
     // Keyboard navigation activates the next registered tab and loads its content.
@@ -66,8 +66,13 @@ export async function adminCases(browser) {
     await page.locator('[name="tariff"]').selectOption("corp");
     await page.locator('[name="ends_at"]').fill("2031-12-15");
     await page.locator('[name="squad"]').fill(SQUAD_ID); await button("verify_squad").click(); await ready();
-    await page.locator('[name="manager"]').fill("910011"); await button("search").click(); await ready(); await button("confirm_manager").click(); await write(button("save")); await ready();
+    await page.locator('[name="manager"]').fill(String(TELEGRAM_ID)); await button("search").click(); await ready(); await button("confirm_manager").click(); await write(button("save")); await ready();
     assert.equal(api.contracts.length, 2); assert.equal(api.contracts[1].ends_at, "2031-12-16T00:00:00.000Z");
+    await button("clear_manager").click(); await button("save").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
+    assert.equal(api.contracts[1].manager_user_id, null);
+    await button("back").click(); await button("new_contract").click(); await ready();
+    await page.locator('[name="name"]').fill("Admin-only browser fixture"); await page.locator('[name="tariff"]').selectOption("corp");
+    await write(button("save")); await ready(); assert.equal(api.contracts[2].manager_user_id, null);
     assert.deepEqual(errors, []); await fit(); await page.close(); passed++;
   }
   for (const [timezoneId, day, expiry] of [

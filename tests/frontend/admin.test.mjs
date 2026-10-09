@@ -66,23 +66,23 @@ test("terms require confirmation and resolve a lost PUT without overwriting a ne
 test("a contract with a deleted manager stays editable and allows assigning a replacement", async (context) => {
   const { api, target, click, fill, submit, open } = setup(context);
   api.contracts[0].manager_user_id = null; await open();
-  assert.match(target.textContent, /manager account was deleted/);
+  assert.match(target.textContent, /No manager assigned/);
   assert.equal(target.querySelector('[name="manager"]').required, false);
   fill("name", "Contract without a manager"); await submit(); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.contracts[0].manager_user_id, null);
   assert.equal(api.contracts[0].name, "Contract without a manager");
   fill("manager", "910011"); await click("Find account"); await click("Confirm manager"); await submit(); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.contracts[0].manager_user_id, 910011);
-  assert.doesNotMatch(target.textContent, /manager account was deleted/);
+  assert.doesNotMatch(target.textContent, /No manager assigned/);
 });
 
 test("reloading after manager deletion clears the stale account selection", async (context) => {
   const { api, target, click, open } = setup(context); await open();
-  assert.equal(target.querySelector('[name="manager"]').value, "910011");
+  assert.equal(target.querySelector('[name="manager"]').value, "ms_40000000000040008000000000000001");
   api.contracts[0].manager_user_id = null; await click("Load saved terms");
   assert.equal(target.querySelector('[name="manager"]').value, "");
   assert.equal(target.querySelector('[name="account_query"]'), null);
-  assert.match(target.textContent, /manager account was deleted/);
+  assert.match(target.textContent, /No manager assigned/);
 });
 
 test("invitation write retries preserve UUID and show recovery for a lost one-time credential", async (context) => {
@@ -175,7 +175,7 @@ test("new form defaults to today, has no refresh or user directory, and requires
   assert.ok(![...target.querySelectorAll("button")].some((v) => v.textContent === "Refresh"));
   assert.ok(!api.calls.some((v) => v.path === "/options/accounts"));
   assert.equal(target.querySelector('select[name="manager"]'), null);
-  assert.equal(target.querySelector('[name="manager"]').placeholder, "Minishop ID, @username or email");
+  assert.equal(target.querySelector('[name="manager"]').placeholder, "Minishop ID, Telegram ID, @username or email");
   fill("name", "Selected manager"); fill("tariff", "corp"); fill("manager", "manager@example.invalid");
   await click("Find account"); await submit();
   assert.match(target.textContent, /confirm the manager selection/);
@@ -218,7 +218,7 @@ test("host remount restores every form field and the stable creation ID without 
   }
   assert.equal(next.panels.get("terms").id, id);
   assert.equal(next.panels.get("terms").managerId, 910011);
-  assert.ok(!api.calls.some((v) => v.path === "/options/accounts" && !new URLSearchParams(v.search).get("q")));
+  assert.ok(!api.calls.some((v) => v.path === "/options/accounts" && !new URLSearchParams(v.search).get("q") && !new URLSearchParams(v.search).get("user_id")));
 });
 
 test("remount keeps the active contract tab and refuses to overwrite a newer saved revision", async (context) => {
@@ -290,4 +290,30 @@ test("disposing an older host view cannot erase the replacement view's draft", a
   const thirdTarget = document.createElement("main"); target.after(thirdTarget);
   const third = admin.mountView("corporate-contracts", thirdTarget, { currentLang: "en" }); context.after(() => admin.unmountView(third)); await flush();
   assert.equal(thirdTarget.querySelector('[name="name"]').value, "Newest view");
+});
+
+test("a contract can be created without a manager and an existing assignment can be cleared", async (context) => {
+  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  assert.equal(target.querySelector('[name="manager"]').required, false);
+  fill("name", "Admin-only contract"); fill("tariff", "corp"); await submit();
+  assert.equal(api.contracts[1].manager_user_id, null);
+  await click("Back to contracts"); await click(api.contracts[0].name);
+  await click("Leave without a manager"); await submit(); await click("Confirm", target.querySelector("dialog"));
+  assert.equal(api.contracts[0].manager_user_id, null);
+  assert.equal(target.querySelector('[name="manager"]').value, "");
+  assert.match(target.textContent, /No manager assigned/);
+});
+
+test("public Minishop and Telegram identifiers find and confirm the same canonical manager", async (context) => {
+  const { api, target, click, fill, submit } = setup(context); await flush(); await click("Create contract");
+  fill("name", "Manager by public identity"); fill("tariff", "corp");
+  for (const identifier of ["ms_40000000000040008000000000000001", "771234567"]) {
+    fill("manager", identifier); await click("Find account");
+    assert.match(target.textContent, /ms_40000000000040008000000000000001/);
+    assert.match(target.textContent, /Telegram ID: 771234567/);
+    await click("Confirm manager");
+  }
+  await submit(); assert.equal(api.contracts[1].manager_user_id, 910011);
+  await click("Back to contracts"); await click(api.contracts[1].name);
+  assert.equal(target.querySelector('[name="manager"]').value, "ms_40000000000040008000000000000001");
 });
