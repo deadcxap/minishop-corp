@@ -169,9 +169,8 @@ class Invitations:
 
     @staticmethod
     def _issued(row: Invitation) -> IssuedInvitation:
-        return IssuedInvitation(
-            invitation=InvitationInfo.model_validate(row), code=None, created=False
-        )
+        info = InvitationInfo.model_validate(row)
+        return IssuedInvitation(invitation=info, code=info.code, created=False)
 
     @staticmethod
     async def _insert(
@@ -189,6 +188,7 @@ class Invitations:
             kind=draft.kind,
             use_limit=draft.use_limit,
             code_digest=code_digest(code),
+            code_value=code.get_secret_value(),
             created_by=actor,
             replaces_id=replaces_id,
         )

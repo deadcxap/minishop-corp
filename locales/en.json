@@ -212,5 +212,6 @@
   "minishop_corp_account_ambiguous": "This number matches different accounts. Use a Minishop ID (ms_…), @username or email.",
   "admin_minishop_corp_telegram_id": "Telegram ID",
   "minishop_corp_internal_error": "Internal plugin error.",
-  "minishop_corp_diagnostic_id": "Diagnostic ID: {id}"
+  "minishop_corp_diagnostic_id": "Diagnostic ID: {id}",
+  "minishop_corp_code_saved": "The code is saved and available in the invitation list."
 }

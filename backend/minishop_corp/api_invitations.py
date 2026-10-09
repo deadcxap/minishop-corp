@@ -13,6 +13,7 @@ from .invitation_lookup import InvitationLookup
 from .invitations import Invitations
 from .invitations_types import (
     CreateInvitation,
+    InvitationInfo,
     IssuedInvitation,
     PreviewInvitation,
     RotateInvitation,
@@ -42,16 +43,25 @@ async def customer_preview(request: web.Request) -> web.Response:
         return reply
 
 
+def invitation_payload(request: web.Request, row: InvitationInfo) -> dict[str, object]:
+    """Only call after admin or contract-manager authorization, never for public offers."""
+    return {
+        **row.model_dump(mode="json", exclude={"code"}),
+        "code": row.code.get_secret_value() if row.code else None,
+        "link": invitation_link(request, row.code) if row.code else None,
+    }
+
+
 def issued_response(request: web.Request, issued: IssuedInvitation) -> web.Response:
     code = issued.code
     return response(
         {
             "ok": True,
-            "invitation": issued.invitation.model_dump(mode="json"),
+            "invitation": invitation_payload(request, issued.invitation),
             "code": code.get_secret_value() if code else None,
             "link": invitation_link(request, code) if code else None,
             "created": issued.created,
-            "notice": "minishop_corp_code_shown_once",
+            "notice": "minishop_corp_code_saved",
         },
         status=201 if issued.created else 200,
     )
@@ -67,7 +77,7 @@ async def admin_collection(request: web.Request) -> web.Response:
             page = ContractPage.model_validate(dict(request.query))
             rows = await invitations.list(actor.session, actor.user_id, contract_id, page)
             return response(
-                {"ok": True, "invitations": [row.model_dump(mode="json") for row in rows]}
+                {"ok": True, "invitations": [invitation_payload(request, row) for row in rows]}
             )
         issued = await invitations.create(
             actor.session, actor.user_id, contract_id, await body(request, CreateInvitation)
@@ -112,7 +122,7 @@ async def admin_revoke(request: web.Request) -> web.Response:
             UUID(request.match_info["invitation_id"]),
         )
         await actor.session.commit()
-        return response({"ok": True, "invitation": result.model_dump(mode="json")})
+        return response({"ok": True, "invitation": invitation_payload(request, result)})
 
 
 @boundary
@@ -126,7 +136,9 @@ async def manager_collection(request: web.Request) -> web.Response:
             page,
             manager=True,
         )
-        return response({"ok": True, "invitations": [row.model_dump(mode="json") for row in rows]})
+        return response(
+            {"ok": True, "invitations": [invitation_payload(request, row) for row in rows]}
+        )
 
 
 def setup_invitation_routes(app: web.Application) -> None:

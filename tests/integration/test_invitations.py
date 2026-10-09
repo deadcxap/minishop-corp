@@ -96,9 +96,19 @@ async def test_create_codes_metadata_and_retries(
     assert stored.used_count == stored.reserved_count == 0
     again = await client.post(path, json=payload, headers=authorization(host))
     assert again.status == 200
-    assert (await again.json())["code"] is None
+    assert (await again.json())["code"] == secret.get_secret_value()
     rows = (await (await client.get(path, headers=authorization(host))).json())["invitations"]
-    assert len(rows) == 1 and "code_digest" not in rows[0] and "code" not in rows[0]
+    assert len(rows) == 1 and "code_digest" not in rows[0]
+    assert rows[0]["code"] == secret.get_secret_value()
+    assert stored.code_value == secret.get_secret_value()
+    assert first.headers["Cache-Control"] == "private, no-store"
+    manager_path = f"{USER_PATH}/managed-contracts/{contract_id}/invitations"
+    for account in (MEMBER, OTHER):
+        denied = await client.get(manager_path, headers=authorization(host, account))
+        assert denied.status == 404 and secret.get_secret_value() not in await denied.text()
+    managed = await client.get(manager_path, headers=authorization(host, MANAGER))
+    managed_rows = (await managed.json())["invitations"]
+    assert managed_rows == ([] if kind == "single" else rows)
     events = list(
         await host.session.scalars(
             select(AuditEvent.details).where(AuditEvent.contract_id == contract_id)

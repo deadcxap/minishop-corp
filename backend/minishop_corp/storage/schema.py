@@ -54,6 +54,7 @@ class Invitation(Base):
     contract_id: Mapped[UUID]
     kind: Mapped[Literal["single", "reusable"]] = mapped_column(String(16))
     code_digest: Mapped[str] = mapped_column(String(64))
+    code_value: Mapped[str | None] = mapped_column(String(37))
     use_limit: Mapped[int] = mapped_column(Integer)
     used_count: Mapped[int] = mapped_column(Integer, default=0)
     reserved_count: Mapped[int] = mapped_column(Integer, default=0)

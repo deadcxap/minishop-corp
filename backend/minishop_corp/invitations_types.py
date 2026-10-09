@@ -1,4 +1,4 @@
-"""Invitation credentials are write-once outputs; stored/public metadata has no secret."""
+"""Invitation credentials stay masked in models and are revealed only by authorized APIs."""
 
 import hashlib
 import re
@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from .contracts_types import ContractError, ContractSummary
 
@@ -43,6 +43,9 @@ class InvitationInfo(BaseModel):
     revoked_at: datetime | None
     created_at: datetime
     replaces_id: UUID | None
+    code: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("code_value", "code")
+    )
 
 
 class IssuedInvitation(BaseModel):
