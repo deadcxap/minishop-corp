@@ -40,6 +40,76 @@ Minishop найдёт и скачает подписанный пакет; ос�
 [инструкции сборки](docs/ci-packaging.md). Установка, обновление и эксплуатация — в
 [руководстве](docs/installation.md).
 
+## Скриншоты
+
+Нажмите на изображение, чтобы открыть его в полном размере.
+
+### Панель администратора
+
+[![Список корпоративных подписок в админке Minishop](docs/screenshots/admin-subscriptions.png)](docs/screenshots/admin-subscriptions.png)
+
+<details>
+<summary>Условия подписки, участники, приглашения и применение изменений</summary>
+
+**Условия подписки** — тариф, общий срок и внешний сквад.
+
+[![Настройка условий корпоративной подписки](docs/screenshots/admin-subscription-settings.png)](docs/screenshots/admin-subscription-settings.png)
+
+**Участники** — профили, трафик, устройства и управление доступом.
+
+[![Участники корпоративной подписки в админке](docs/screenshots/admin-members.png)](docs/screenshots/admin-members.png)
+
+**Приглашения** — коды, ссылки и лимиты подключений.
+
+[![Управление приглашениями в корпоративную подписку](docs/screenshots/admin-invitations.png)](docs/screenshots/admin-invitations.png)
+
+**Применение условий** — состояние операций и общая сверка участников.
+
+[![Состояние применения условий корпоративной подписки](docs/screenshots/admin-reconciliation.png)](docs/screenshots/admin-reconciliation.png)
+
+</details>
+
+### Mini App
+
+<table>
+  <tr>
+    <th width="33%">Подключение по коду</th>
+    <th width="33%">Корпоративная подписка</th>
+    <th width="33%">Кабинет управляющего</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top">
+      <a href="docs/screenshots/customer-join.png"><img src="docs/screenshots/customer-join.png" alt="Ввод кода корпоративной подписки" width="240"></a>
+    </td>
+    <td align="center" valign="top">
+      <a href="docs/screenshots/customer-membership.png"><img src="docs/screenshots/customer-membership.png" alt="Статус, срок и отключение корпоративной подписки" width="240"></a>
+    </td>
+    <td align="center" valign="top">
+      <a href="docs/screenshots/manager-members.png"><img src="docs/screenshots/manager-members.png" alt="Управление участниками подписки в Mini App" width="240"></a>
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary>Вход в раздел из настроек Mini App</summary>
+
+<table>
+  <tr>
+    <th width="50%">До подключения</th>
+    <th width="50%">С активной подпиской</th>
+  </tr>
+  <tr>
+    <td align="center" valign="top">
+      <a href="docs/screenshots/customer-settings.png"><img src="docs/screenshots/customer-settings.png" alt="Пункт подключения корпоративной подписки в настройках" width="280"></a>
+    </td>
+    <td align="center" valign="top">
+      <a href="docs/screenshots/customer-settings-connected.png"><img src="docs/screenshots/customer-settings-connected.png" alt="Название и срок действующей подписки в настройках" width="280"></a>
+    </td>
+  </tr>
+</table>
+
+</details>
+
 ## Документация
 
 - [Требования и критерии приёмки](docs/specification.md).
@@ -56,3 +126,20 @@ Minishop найдёт и скачает подписанный пакет; ос�
 ## Лицензия
 
 [Unlicense](LICENSE).
+
+## На токены автору
+
+Если плагин экономит вам время, можно подкинуть автору на токены.
+Кофе он ещё сварит сам, а нейросеть в долг не думает ☕
+
+**GRAM · сеть TON**
+
+```text
+UQAW7M3NlFZEAMF8Ei3lXTOz-FMsrcZNrJvRcyDvF0oGYimG
+```
+
+**USDT · сеть TRC20**
+
+```text
+TE8JtteH2yy82CPqRPgAGSfgL2oXqauVk1
+```
