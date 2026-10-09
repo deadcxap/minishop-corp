@@ -215,5 +215,9 @@
   "admin_minishop_corp_make_manager": "Назначить управляющим",
   "admin_minishop_corp_current_manager": "Управляющий подпиской",
   "admin_minishop_corp_make_manager_hint": "Участник получит доступ к управлению этой корпоративной подпиской. Прежний управляющий потеряет эту роль. Личная подписка и глобальные права Minishop не изменятся.",
-  "admin_minishop_corp_manager_assigned": "Управляющий подпиской назначен."
+  "admin_minishop_corp_manager_assigned": "Управляющий подпиской назначен.",
+  "admin_minishop_corp_delete_contract": "Удалить подписку",
+  "admin_minishop_corp_delete_contract_hint": "Подписка, все её коды и история плагина будут удалены без возможности восстановления. Сначала исключите всех участников и дождитесь завершения операций. Аккаунты Minishop сохранятся.",
+  "admin_minishop_corp_contract_deleted": "Корпоративная подписка удалена.",
+  "minishop_corp_contract_not_empty": "Сначала исключите всех участников и дождитесь завершения операций. После этого подписку можно удалить."
 }

@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .contracts_types import (
@@ -17,7 +17,16 @@ from .contracts_types import (
     UpdateContract,
 )
 from .integration.contracts import ContractHost
-from .storage.schema import AuditEvent, Contract, Membership, Revision
+from .storage.schema import (
+    AuditEvent,
+    Contract,
+    Invitation,
+    InvitationPreview,
+    Membership,
+    Operation,
+    Reservation,
+    Revision,
+)
 
 
 def terms_of(row: Contract) -> ContractTerms:
@@ -154,6 +163,54 @@ class Contracts:
             .all()
         )
         return [details_of(row, counts.get(row.id, 0)) for row in rows]
+
+    async def delete(self, session: AsyncSession, actor: int, contract_id: UUID) -> bool:
+        await self.host.require_admin(session, actor)
+        await self.host.lock_accounts(session, [actor])
+        row = await session.scalar(
+            select(Contract)
+            .where(Contract.id == contract_id)
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        )
+        if row is None:
+            return False
+        member = await session.scalar(
+            select(Membership.id)
+            .where(Membership.contract_id == contract_id, Membership.current_user_id.is_not(None))
+            .limit(1)
+        )
+        operation = await session.scalar(
+            select(Operation.id)
+            .where(
+                Operation.contract_id == contract_id,
+                Operation.state.in_(("pending", "running", "retry")),
+            )
+            .limit(1)
+        )
+        held = await session.scalar(
+            select(Reservation.id)
+            .where(Reservation.contract_id == contract_id, Reservation.state == "held")
+            .limit(1)
+        )
+        if member is not None or operation is not None or held is not None:
+            raise ContractError("minishop_corp_contract_not_empty", 409)
+        # No live member/operation may be erased. All producers hold the contract
+        # lock too; a waiting join sees a missing code after this transaction.
+        # Delete only our tables in FK order. The current revision FK is deferred.
+        for model in (
+            InvitationPreview,
+            AuditEvent,
+            Reservation,
+            Operation,
+            Membership,
+            Invitation,
+            Revision,
+        ):
+            await session.execute(delete(model).where(model.contract_id == contract_id))
+        await session.delete(row)
+        await session.flush()
+        return True
 
     @staticmethod
     async def _details(session: AsyncSession, row: Contract) -> ContractDetails:

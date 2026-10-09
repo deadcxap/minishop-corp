@@ -355,6 +355,17 @@ test('deleting a used invitation confirms, keeps members and retries a lost resp
   const calls = api.calls.filter(c => c.method === 'DELETE'); assert.equal(calls.length, 2); assert.equal(calls[0].path, calls[1].path);
 });
 
+test('deleting a subscription rejects current members, then removes its draft and retries safely', async (t) => {
+  const { api, target, click, open } = setup(t); await open();
+  await click('Delete subscription'); await click('Cancel', target.querySelector('dialog')); assert.equal(api.contracts.length, 1);
+  await click('Delete subscription'); await click('Confirm', target.querySelector('dialog'));
+  assert.match(target.textContent, /Remove every member/); assert.equal(api.contracts.length, 1);
+  api.contracts[0].member_count = 0; api.members = []; api.loseNextWrite = true;
+  await click('Delete subscription'); await click('Confirm', target.querySelector('dialog'));
+  await click('Retry the same request'); assert.equal(api.contracts.length, 0);
+  assert.match(target.textContent, /Corporate subscription deleted/); assert.equal(document.defaultView.sessionStorage.length, 0);
+});
+
 test('assigning a manager from members confirms and retries the same version without changing terms', async (t) => {
   const { api, target, click, open } = setup(t); await open(); await click('Members');
   const member = api.members[0], original = { ...api.contracts[0] };

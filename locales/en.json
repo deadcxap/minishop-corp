@@ -215,5 +215,9 @@
   "admin_minishop_corp_make_manager": "Make manager",
   "admin_minishop_corp_current_manager": "Subscription manager",
   "admin_minishop_corp_make_manager_hint": "This member will manage this corporate subscription. The previous manager will lose this role. Their own subscription and global Minishop permissions will stay unchanged.",
-  "admin_minishop_corp_manager_assigned": "Subscription manager assigned."
+  "admin_minishop_corp_manager_assigned": "Subscription manager assigned.",
+  "admin_minishop_corp_delete_contract": "Delete subscription",
+  "admin_minishop_corp_delete_contract_hint": "The subscription, all its codes and plugin history will be permanently deleted. Remove every member and wait for all operations to finish first. Minishop accounts will be kept.",
+  "admin_minishop_corp_contract_deleted": "Corporate subscription deleted.",
+  "minishop_corp_contract_not_empty": "Remove every member and wait for all operations to finish before deleting the subscription."
 }

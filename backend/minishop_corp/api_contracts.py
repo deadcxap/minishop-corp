@@ -115,6 +115,12 @@ async def admin_contract(request: web.Request) -> web.Response:
     async with request_actor(request) as actor:
         contract_id = UUID(request.match_info["contract_id"])
         contracts = service(request)
+        if request.method == "DELETE":
+            deleted = await contracts.delete(actor.session, actor.user_id, contract_id)
+            await actor.session.commit()
+            if deleted:
+                event("contract_deleted", contract_id=str(contract_id), actor_user_id=actor.user_id)
+            return response({"ok": True})
         if request.method in {"GET", "HEAD"}:
             result = await contracts.admin_get(actor.session, actor.user_id, contract_id)
         else:
@@ -151,6 +157,7 @@ def setup_contract_routes(app: web.Application) -> None:
     app.router.add_post(admin, admin_collection)
     app.router.add_get(admin + "/{contract_id}", admin_contract)
     app.router.add_put(admin + "/{contract_id}", admin_contract)
+    app.router.add_delete(admin + "/{contract_id}", admin_contract)
     app.router.add_get(customer + "/managed-contracts", managed_collection)
     app.router.add_get(customer + "/managed-contracts/{contract_id}", scoped_contract)
     app.router.add_get(customer + "/contracts/{contract_id}", scoped_contract)

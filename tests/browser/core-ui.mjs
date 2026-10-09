@@ -36,6 +36,14 @@ try {
           assert.equal(await page.locator('.minishop-corp button').count(), 1);
           assert.equal(await page.locator('.minishop-corp input').count(), 0);
           assert.equal(await page.locator('a[href*="/extensions/minishop-corp/"]').count(), 0);
+          const sizes = await page.evaluate(() => {
+            const native = document.querySelector('.settings-row-security'), corporate = document.querySelector('.corp-settings-button');
+            const measure = node => ({ height: node.getBoundingClientRect().height, columns: getComputedStyle(node).gridTemplateColumns,
+              icon: node.querySelector('svg').getBoundingClientRect().width, text: getComputedStyle(node.querySelector('strong')).fontSize });
+            return [measure(native), measure(corporate)];
+          });
+          assert.equal(sizes[0].icon, sizes[1].icon); assert.equal(sizes[0].text, sizes[1].text);
+          assert.ok(Math.abs(sizes[0].height - sizes[1].height) <= 3, JSON.stringify(sizes));
           await page.screenshot({ path: `.local/screenshots/core-settings-${language}-${width}.png`, fullPage: true });
           await page.locator('.corp-settings-button').click();
         }

@@ -55,8 +55,13 @@ export function fixture() {
       return ok({ contract: row });
     }
     const parts = p.split("/").filter(Boolean), current = state.contracts.find((row) => row.id === parts[1]);
-    if (!current) return fail("minishop_corp_contract_missing", 404);
+    if (!current) return method === "DELETE" && parts.length === 2 ? ok({}) : fail("minishop_corp_contract_missing", 404);
     if (parts.length === 2) {
+      if (method === "DELETE") {
+        if (current.member_count || state.pending) return fail("minishop_corp_contract_not_empty", 409);
+        state.contracts = state.contracts.filter((row) => row.id !== current.id); state.invitations = [];
+        return ok({});
+      }
       if (method === "PUT") {
         if (body.expected_version !== current.version) return fail("minishop_corp_version_conflict", 409);
         const { expected_version, ...data } = body; Object.assign(current, data, { version: current.version + 1 });

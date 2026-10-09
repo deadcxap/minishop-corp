@@ -49,6 +49,9 @@ export async function adminCases(browser) {
     await page.locator(".corp-member img").waitFor(); await snap("members");
     assert.equal(await page.locator(".corp-member script").count(), 0);
     assert.match(await page.locator(".corp-member").last().innerText(), language === "ru" ? /Нет данных/ : /No data/);
+    await button("make_manager").first().click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
+    assert.equal(api.contracts[0].manager_user_id, api.members[0].profile.user_id);
+    await snap("member-manager");
     await button("exclude").first().click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.members.length, 2); assert.equal(api.members[0].state, "leaving");
     await tab("invitations").click(); await ready();
@@ -59,6 +62,10 @@ export async function adminCases(browser) {
     assert.equal(api.invitations[1].use_limit, 9);
     await button("rotate").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.ok(api.invitations[1].revoked_at); assert.equal(api.invitations[2].use_limit, 9);
+    const removedCode = api.invitations[0].id;
+    await button("delete_invitation", page.locator(`[data-invitation="${removedCode}"]`)).click();
+    await snap("delete-code-confirmation"); await write(button("confirm", page.getByRole("dialog"))); await ready();
+    assert.ok(!api.invitations.some(row => row.id === removedCode));
     await tab("sync").click(); await ready(); await snap("sync");
     assert.ok(await page.getByText((language === "ru" ? ru : en).minishop_corp_panel_unconfirmed, { exact: true }).isVisible());
     await button("back").click(); await button("new_contract").click(); await ready();
@@ -76,6 +83,11 @@ export async function adminCases(browser) {
     await snap("lookup-diagnostic"); await button("clear_manager").click();
     await page.locator('[name="name"]').fill("Admin-only browser fixture"); await page.locator('[name="tariff"]').selectOption("corp");
     await write(button("save")); await ready(); assert.equal(api.contracts[2].manager_user_id, null);
+    api.pending = false;
+    await button("delete_contract").click(); await snap("delete-subscription-confirmation");
+    await write(button("confirm", page.getByRole("dialog")));
+    await page.getByRole("button", { name: t("new_contract"), exact: true }).waitFor();
+    assert.equal(api.contracts.length, 2); await snap("subscription-deleted");
     assert.deepEqual(errors, []); await fit(); await page.close(); passed++;
   }
   for (const [timezoneId, day, expiry] of [

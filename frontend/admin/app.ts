@@ -99,6 +99,17 @@ export class AdminView extends Panel {
       this.notice = "admin_minishop_corp_manager_assigned";
     }, true);
   }
+  async removeContract(): Promise<void> {
+    if (!this.current || this.confirming || !await this.canLeave()) return;
+    const current = this.current;
+    if (!await confirm(this.root, this.t("delete_contract"), `${current.name}\n${this.t("delete_contract_hint")}`, this.language, this.controller.signal)) return;
+    await this.run(async () => {
+      await this.api.request(`/contracts/${current.id}`, "DELETE");
+      this.clearPanels(); this.current = null; this.mode = "list"; this.restoredEditor = null;
+      this.rows = this.rows.filter((row) => row.id !== current.id); this.drafts?.clear();
+      this.notice = "admin_minishop_corp_contract_deleted";
+    }, true);
+  }
   panel(tab: Tab): Panel {
     const existing = this.panels.get(tab); if (existing) return existing;
     const current = (): Contract => { if (!this.current) throw new Error("missing_contract"); return this.current; };
@@ -147,6 +158,8 @@ export class AdminView extends Panel {
       }
       const back = button(this.t("back"), () => { void this.back(); }); back.disabled = this.locked; heading.append(back); body.append(heading);
       if (this.current) {
+        const remove = button(this.t("delete_contract"), () => { void this.removeContract(); }, "corp-danger");
+        remove.disabled = this.locked; heading.append(remove);
         const info = el("div", undefined, "corp-actions"); info.append(el("span", this.t(Date.parse(this.current.ends_at) <= Date.now() ? "expired" : "active"), "corp-pill"),
           el("span", date(this.current.ends_at, this.language)), el("span", `${this.t("members")}: ${this.current.member_count}`)); body.append(info);
         const nav = el("div", undefined, "corp-tabs"); nav.setAttribute("role", "tablist"); nav.setAttribute("aria-label", this.t("title"));
