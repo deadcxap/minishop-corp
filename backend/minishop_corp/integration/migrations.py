@@ -7,6 +7,7 @@ from sqlalchemy.engine import Connection
 from .migration_0002 import upgrade as invitation_replacements
 from .migration_0003 import upgrade as membership_reconciliation
 from .migration_0004 import upgrade as shared_reconciliation_sweep
+from .migration_0005 import upgrade as account_deletion
 
 # Fixed, namespaced schema; all constraints/indexes belong to plugin tables.
 INITIAL_DDL = (
@@ -183,5 +184,10 @@ def migrations() -> list[Migration]:
             id="minishop-corp.0004_shared_reconciliation_sweep",
             description="Coordinate one shared six-hour sweep and keep revision dispatch immediate",
             upgrade=shared_reconciliation_sweep,
+        ),
+        Migration(
+            id="minishop-corp.0005_account_deletion",
+            description="Detach deleted accounts and preserve corporate history",
+            upgrade=account_deletion,
         ),
     ]

@@ -4,7 +4,7 @@ import { operation, type OperationInfo } from "../shared/members-data";
 export interface Summary { id: string; name: string; ends_at: string; version: number; expired: boolean }
 export interface Tariff { key: string; names: { ru: string; en: string }; traffic_limit_bytes: number | null; hwid_device_limit: number | null }
 export interface CustomerOperation extends OperationInfo { departure: { kind: "trial" | "disabled"; ends_at: string } | null }
-export interface Membership { id: string; state: "pending" | "active" | "leaving" | "left" | "excluded" | "failed"; contract: Summary; tariff: Tariff | null; can_leave: boolean; operation: CustomerOperation | null }
+export interface Membership { id: string; state: "pending" | "active" | "leaving" | "left" | "excluded" | "failed" | "deleted"; contract: Summary; tariff: Tariff | null; can_leave: boolean; operation: CustomerOperation | null }
 export interface Offer { invitation_id: string; contract: Summary; tariff: Tariff }
 export function summary(value: unknown): Summary {
   const v = object(value);
@@ -23,7 +23,7 @@ export function customerOperation(value: unknown): CustomerOperation {
 }
 export function membership(value: unknown): Membership {
   const v = object(value);
-  return { id: string(v.id), state: choice(v.state, ["pending", "active", "leaving", "left", "excluded", "failed"]),
+  return { id: string(v.id), state: choice(v.state, ["pending", "active", "leaving", "left", "excluded", "failed", "deleted"]),
     contract: summary(v.contract), tariff: nullable(v.tariff, tariff), can_leave: boolean(v.can_leave),
     operation: nullable(v.operation, customerOperation) };
 }

@@ -19,7 +19,7 @@ export function member(value: unknown): CorporateMember {
   const v = object(value), p = object(v.profile), s = object(v.statistics);
   const statistics: MemberStatistics = { traffic_used_bytes: statistic(s.traffic_used_bytes),
     traffic_limit_bytes: statistic(s.traffic_limit_bytes), device_count: statistic(s.device_count), device_limit: statistic(s.device_limit) };
-  return { id: string(v.id), state: choice(v.state, ["pending", "active", "leaving", "left", "excluded", "failed"]),
+  return { id: string(v.id), state: choice(v.state, ["pending", "active", "leaving", "left", "excluded", "failed", "deleted"]),
     joined_at: nullable(v.joined_at, string), profile: { ...account(p), telegram_url: nullable(p.telegram_url, string) },
     statistics, avatar_path: nullable(v.avatar_path, string), operation: nullable(v.operation, operation) };
 }

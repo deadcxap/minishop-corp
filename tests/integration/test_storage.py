@@ -48,7 +48,7 @@ async def test_native_migration_chain_rolled_back_then_replayed(engine: AsyncEng
             await connection.scalar(
                 text("SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'")
             )
-            == 4
+            == 5
         )
         names = (
             await connection.scalars(
@@ -116,37 +116,35 @@ async def test_reject_invalid_invitation_or_membership(host: Host, bad: str) -> 
             await host.session.flush()
 
 
-@pytest.mark.parametrize("role", ["manager", "member"])
+@pytest.mark.parametrize("role", ["manager", "member", "both"])
 @pytest.mark.parametrize("action", ["delete", "merge"])
-async def test_native_account_removal_cannot_drop_current_links(
+async def test_native_account_removal_detaches_current_links(
     host: Host, role: str, action: str
 ) -> None:
     target_id = USER_ID + 1
     await user_dal.create_user(host.session, {"user_id": target_id})
-    contract = await seed_contract(host.session, USER_ID if role == "manager" else target_id)
-    if role == "member":
+    contract = await seed_contract(host.session, target_id if role == "member" else USER_ID)
+    if role in ("member", "both"):
         host.session.add(
             Membership(contract_id=contract.id, user_id=USER_ID, current_user_id=USER_ID)
         )
         await host.session.flush()
-    with pytest.raises(IntegrityError):
-        async with host.session.begin_nested():
-            if action == "delete":
-                await delete_user_and_relations(host.session, USER_ID)
-            else:
-                await merge_users(host.session, source_user_id=USER_ID, target_user_id=target_id)
-    assert await user_dal.get_user_by_id(host.session, USER_ID) is not None
-    assert await user_dal.get_user_by_id(host.session, target_id) is not None
-    if role == "manager":
-        await host.session.refresh(contract)
-        assert contract.manager_user_id == USER_ID
+    if action == "delete":
+        assert await delete_user_and_relations(host.session, USER_ID)
     else:
-        assert (
-            await host.session.scalar(
-                select(Membership.current_user_id).where(Membership.contract_id == contract.id)
-            )
-            == USER_ID
+        await merge_users(host.session, source_user_id=USER_ID, target_user_id=target_id)
+    assert await user_dal.get_user_by_id(host.session, USER_ID) is None
+    assert await user_dal.get_user_by_id(host.session, target_id) is not None
+    await host.session.refresh(contract)
+    assert contract.manager_user_id == (target_id if role == "member" else None)
+    assert contract.version == 1
+    if role in ("member", "both"):
+        member = await host.session.scalar(
+            select(Membership).where(Membership.contract_id == contract.id)
         )
+        assert member is not None and member.user_id == USER_ID
+        assert member.state == "deleted" and member.current_user_id is None
+        assert member.ended_at is not None and member.generation == 2
 
 
 async def test_concurrent_membership_uses_one_account_slot(engine: AsyncEngine) -> None:

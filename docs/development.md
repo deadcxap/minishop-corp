@@ -154,7 +154,7 @@ runtime, ревизию ядра, хеши и подпись Ed25519. При о�
 Пакет использует Plugin API v1, frontend host API v1 и capabilities `user_ui`,
 `ui_composition`. Пакет издателя требует проверенную `core_revision`, поскольку
 capabilities не гарантируют совместимость внутренних сервисов. Зарегистрированы
-четыре миграции, worker операций `minishop-corp.operations` и общий worker сверки
+пять миграций, worker операций `minishop-corp.operations` и общий worker сверки
 `minishop-corp.reconciliation`. Публичный Plugin API используется при регистрации;
 внутренние функции авторизации и другие зависимости ядра собраны в
 `backend/minishop_corp/integration/`. Их поведение проверяется на указанной

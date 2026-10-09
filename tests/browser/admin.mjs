@@ -33,6 +33,16 @@ export async function adminCases(browser) {
     await button("save").click(); await page.getByRole("dialog").waitFor(); await snap("confirmation");
     await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.contracts[0].version, 2); await snap("terms");
+    api.contracts[0].manager_user_id = null;
+    await button("reload_saved").click(); await ready();
+    assert.ok(await page.getByText(t("manager_missing"), { exact: true }).isVisible());
+    await snap("manager-deleted");
+    await page.locator('[name="name"]').fill("Contract without a manager");
+    await button("save").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
+    assert.equal(api.contracts[0].manager_user_id, null);
+    await page.locator('[name="manager"]').selectOption("910011");
+    await button("save").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
+    assert.equal(api.contracts[0].manager_user_id, 910011);
     // Keyboard navigation activates the next registered tab and loads its content.
     await tab("terms").focus(); await page.keyboard.press("ArrowRight"); await ready();
     assert.equal(await tab("members").getAttribute("aria-selected"), "true");

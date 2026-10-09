@@ -85,9 +85,10 @@ class ContractHost:
             AccessAdapter(self.service)._period_tariff(terms.tariff_key)
         except AccessError as exc:
             raise ContractError(exc.code.value, 422) from exc
-        manager = await get_user_by_id(session, terms.manager_user_id)
-        if manager is None or Account.model_validate(manager).is_banned:
-            raise ContractError("minishop_corp_account_unavailable", 422)
+        if terms.manager_user_id is not None:
+            manager = await get_user_by_id(session, terms.manager_user_id)
+            if manager is None or Account.model_validate(manager).is_banned:
+                raise ContractError("minishop_corp_account_unavailable", 422)
         # Minishop owns the cache and refresh on a miss; no plugin panel client.
         squad = await self.service.panel_service.get_external_squad(str(terms.external_squad_uuid))
         try:

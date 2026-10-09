@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("MINISHOP_PLUGIN_STORE", str(ROOT / ".local" / "test-plugin-store"))
+os.environ["WEBAPP_THEMES_DIR"] = str(ROOT / ".local" / "test-themes")
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
 collect_ignore_glob = [] if os.environ.get("CORP_INTEGRATION") == "1" else ["integration/*"]

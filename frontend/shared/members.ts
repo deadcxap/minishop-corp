@@ -24,7 +24,7 @@ export interface OperationInfo {
 
 export interface CorporateMember {
   id: string;
-  state: "pending" | "active" | "leaving" | "left" | "excluded" | "failed";
+  state: "pending" | "active" | "leaving" | "left" | "excluded" | "failed" | "deleted";
   joined_at: string | null;
   profile: {
     user_id: number;

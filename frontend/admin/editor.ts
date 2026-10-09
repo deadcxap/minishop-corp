@@ -42,7 +42,7 @@ export class Editor extends Panel {
   }
   async submit(): Promise<void> {
     if (this.verified?.uuid !== this.squadId) { this.error = new ApiError("admin_minishop_corp_squad_required", 400); this.render(); return; }
-    if (this.managerId === null) return;
+    if (this.managerId === null && this.original?.manager_user_id !== null) return;
     const draft: Terms = { name: this.name.trim(), tariff_key: this.tariffKey, external_squad_uuid: this.squadId,
       ends_at: new Date(this.end + "Z").toISOString(), manager_user_id: this.managerId };
     if (this.original && !await confirm(this.root, this.t("confirm_terms"), `${this.t("confirm_terms_hint")}\n${draft.name} · ${draft.tariff_key} · ${date(draft.ends_at, this.language)}`, this.language, this.controller.signal)) return;
@@ -89,6 +89,7 @@ export class Editor extends Panel {
       }));
       if (this.verified?.uuid === this.squadId) squadBox.append(el("p", `${this.t("squad_verified")}: ${this.verified.name}`, "corp-notice"));
       const managers = el("div", undefined, "corp-wide corp-stack");
+      if (this.original?.manager_user_id === null) managers.append(el("p", this.t("manager_missing"), "corp-alert"));
       const search = input("account_query", this.query, (v) => { this.query = v; }); search.maxLength = 100;
       managers.append(field(this.t("account_query"), search), button(this.t("search"), () => { void this.run(() => this.search()); }));
       const users = new Map(this.accounts.map((row) => [row.user_id, row]));
@@ -97,7 +98,7 @@ export class Editor extends Panel {
       if (this.managerId !== null && !users.has(this.managerId)) choices.push([String(this.managerId), `#${this.managerId}`]);
       const manager = select("manager", this.managerId === null ? "" : String(this.managerId), choices, (v) => {
         this.managerId = v ? Number(v) : null; this.selected = users.get(Number(v)) ?? null;
-      }); manager.required = true;
+      }); manager.required = this.original?.manager_user_id !== null;
       managers.append(field(this.t("manager"), manager, this.t("manager_hint")));
       if (!this.accounts.length) managers.append(el("p", this.t("empty_accounts")));
       if (this.nextPage !== null) managers.append(button(this.t("load_more"), () => { void this.run(() => this.search(this.nextPage ?? 0)); }));
@@ -114,7 +115,8 @@ export class Editor extends Panel {
       this.original = current; this.name = current.name; this.tariffKey = current.tariff_key;
       this.end = new Date(current.ends_at).toISOString().slice(0, -1);
       this.managerId = current.manager_user_id; this.squadId = current.external_squad_uuid;
-      this.query = String(this.managerId); this.verified = null; await this.load();
+      this.query = this.managerId === null ? "" : String(this.managerId); this.selected = null;
+      this.verified = null; await this.load();
       if (this.alive) this.saved(current);
     });
   }

@@ -26,7 +26,7 @@ class ContractTerms(BaseModel):
     tariff_key: str = Field(min_length=1, max_length=128)
     external_squad_uuid: UUID
     ends_at: AwareDatetime
-    manager_user_id: AccountId
+    manager_user_id: AccountId | None
 
     @field_validator("ends_at")
     @classmethod
@@ -35,7 +35,7 @@ class ContractTerms(BaseModel):
 
     @field_validator("manager_user_id")
     @classmethod
-    def nonzero_account(cls, value: int) -> int:
+    def nonzero_account(cls, value: int | None) -> int | None:
         if value == 0:
             raise ValueError("An account id is required")
         return value
@@ -43,6 +43,7 @@ class ContractTerms(BaseModel):
 
 class CreateContract(ContractTerms):
     id: UUID
+    manager_user_id: AccountId
 
 
 class UpdateContract(ContractTerms):
@@ -63,7 +64,7 @@ class ContractDetails(ContractSummary):
     member_count: int
     tariff_key: str
     external_squad_uuid: UUID
-    manager_user_id: int
+    manager_user_id: int | None
     created_at: datetime
     updated_at: datetime
 

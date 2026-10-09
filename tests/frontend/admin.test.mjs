@@ -63,6 +63,28 @@ test("terms require confirmation and resolve a lost PUT without overwriting a ne
   assert.equal(api.contracts[0].name, "Someone else's change");
 });
 
+test("a contract with a deleted manager stays editable and allows assigning a replacement", async (context) => {
+  const { api, target, click, fill, submit, open } = setup(context);
+  api.contracts[0].manager_user_id = null; await open();
+  assert.match(target.textContent, /manager account was deleted/);
+  assert.equal(target.querySelector('[name="manager"]').required, false);
+  fill("name", "Contract without a manager"); await submit(); await click("Confirm", target.querySelector("dialog"));
+  assert.equal(api.contracts[0].manager_user_id, null);
+  assert.equal(api.contracts[0].name, "Contract without a manager");
+  fill("manager", "910011"); await submit(); await click("Confirm", target.querySelector("dialog"));
+  assert.equal(api.contracts[0].manager_user_id, 910011);
+  assert.doesNotMatch(target.textContent, /manager account was deleted/);
+});
+
+test("reloading after manager deletion clears the stale account selection", async (context) => {
+  const { api, target, click, open } = setup(context); await open();
+  assert.equal(target.querySelector('[name="manager"]').value, "910011");
+  api.contracts[0].manager_user_id = null; await click("Load saved terms");
+  assert.equal(target.querySelector('[name="manager"]').value, "");
+  assert.equal(target.querySelector('[name="account_query"]').value, "");
+  assert.match(target.textContent, /manager account was deleted/);
+});
+
 test("invitation write retries preserve UUID and show recovery for a lost one-time credential", async (context) => {
   const { api, target, click, open } = setup(context); await open(); await click("Invitations");
   api.loseNextWrite = true;

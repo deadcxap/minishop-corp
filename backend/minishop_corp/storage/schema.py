@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 PREFIX = "ext_minishop_corp_"
-MembershipState = Literal["pending", "active", "leaving", "left", "excluded", "failed"]
+MembershipState = Literal["pending", "active", "leaving", "left", "excluded", "failed", "deleted"]
 OperationKind = Literal["join", "leave", "exclude", "reconcile"]
 OperationState = Literal["pending", "running", "retry", "succeeded", "failed", "cancelled"]
 
@@ -27,7 +27,7 @@ class Contract(Base):
     tariff_key: Mapped[str] = mapped_column(String(128))
     external_squad_uuid: Mapped[UUID]
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    manager_user_id: Mapped[int] = mapped_column(BigInteger)
+    manager_user_id: Mapped[int | None] = mapped_column(BigInteger)
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -42,7 +42,7 @@ class Revision(Base):
     tariff_key: Mapped[str] = mapped_column(String(128))
     external_squad_uuid: Mapped[UUID]
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    manager_user_id: Mapped[int] = mapped_column(BigInteger)
+    manager_user_id: Mapped[int | None] = mapped_column(BigInteger)
     actor_user_id: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -69,7 +69,7 @@ class Membership(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     contract_id: Mapped[UUID]
     user_id: Mapped[int] = mapped_column(BigInteger)
-    # Historical identity remains after departure; only current links prevent account deletion.
+    # Native deletion clears the live link; the historical identity never grants access.
     current_user_id: Mapped[int | None] = mapped_column(BigInteger)
     invitation_id: Mapped[UUID | None]
     state: Mapped[MembershipState] = mapped_column(String(16), default="pending")

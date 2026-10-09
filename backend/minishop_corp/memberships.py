@@ -112,6 +112,8 @@ class Memberships:
                 or target.accepted_version != draft.offer.contract_version
             ):
                 raise ContractError("minishop_corp_request_conflict", 409)
+            if member.state == "deleted":
+                raise ContractError("minishop_corp_membership_missing", 404)
             return ConfirmationResult(200, operation=operation_info(existing))
         if await session.scalar(select(Membership.id).where(Membership.current_user_id == actor)):
             raise ContractError("minishop_corp_already_member", 409)
@@ -280,7 +282,7 @@ class Memberships:
         contract_id: UUID | None,
     ) -> None:
         if scope == "self":
-            allowed = member.user_id == actor
+            allowed = member.user_id == actor and member.state != "deleted"
         else:
             if scope == "admin":
                 await self.host.require_admin(session, actor)

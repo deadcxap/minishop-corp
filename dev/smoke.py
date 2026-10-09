@@ -69,10 +69,11 @@ async def main() -> None:
                         "WHERE id IN ('minishop-corp.0001_initial', "
                         "'minishop-corp.0002_invitation_replacements', "
                         "'minishop-corp.0003_membership_reconciliation', "
-                        "'minishop-corp.0004_shared_reconciliation_sweep')"
+                        "'minishop-corp.0004_shared_reconciliation_sweep', "
+                        "'minishop-corp.0005_account_deletion')"
                     )
                 )
-                == 4
+                == 5
             )
 
         async def get(path: str, user_id: int, expected: int = 200) -> dict[str, object]:

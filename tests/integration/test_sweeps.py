@@ -270,6 +270,13 @@ async def test_upgrade_existing_member_to_shared_clock(host: Host, previous: int
                 SET scheduled_version = 1, next_reconcile_at = now() + interval '5 hours'
             """)
             )
+        # Installed rows have no deferred events at the start of an upgrade.
+        await host.session.execute(
+            text("SET CONSTRAINTS ext_minishop_corp_current_revision IMMEDIATE")
+        )
+        await host.session.execute(
+            text("SET CONSTRAINTS ext_minishop_corp_current_revision DEFERRED")
+        )
         for migration in migrations()[previous:]:
             await connection.run_sync(migration.upgrade)
         member = await host.session.get(Membership, member_id)

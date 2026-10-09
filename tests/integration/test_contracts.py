@@ -326,10 +326,9 @@ async def test_concurrent_create_retry_is_one_contract(engine: AsyncEngine, host
         )
 
 
-async def test_native_delete_external_side_effect_is_documented_c02(
+async def test_native_delete_manager_keeps_an_editable_contract(
     client: TestClient, host: Host
 ) -> None:
-    # Characterize a host compatibility gap, not support for this deletion flow.
     payload = draft()
     assert (await client.post(ADMIN_PATH, json=payload, headers=authorization(host))).status == 201
     await host.service.extend_active_subscription_days(
@@ -337,8 +336,25 @@ async def test_native_delete_external_side_effect_is_documented_c02(
     )
     assert len(host.panel.users) == 1
     response = await client.delete(f"/api/admin/users/{MANAGER}", headers=authorization(host))
-    assert response.status == 500  # Own FK rejects the native DAL deletion after panel deletion.
+    assert response.status == 200, await response.text()
     assert not host.panel.users
-    assert await user_dal.get_user_by_id(host.session, MANAGER) is not None
+    assert await user_dal.get_user_by_id(host.session, MANAGER) is None
     row = await host.session.get(Contract, UUID(str(payload["id"])))
-    assert row is not None and row.manager_user_id == MANAGER
+    assert row is not None and row.manager_user_id is None and row.version == 1
+    url = ADMIN_PATH + "/" + str(payload["id"])
+    response = await client.get(url, headers=authorization(host))
+    assert response.status == 200
+    assert (await response.json())["contract"]["manager_user_id"] is None
+    update = {key: value for key, value in payload.items() if key != "id"}
+    update.update(name="Without a manager", manager_user_id=None, expected_version=1)
+    response = await client.put(url, json=update, headers=authorization(host))
+    assert response.status == 200, await response.text()
+    assert (await response.json())["contract"]["version"] == 2
+    update.update(manager_user_id=OTHER, expected_version=2)
+    response = await client.put(url, json=update, headers=authorization(host))
+    assert response.status == 200, await response.text()
+    assert (await response.json())["contract"]["manager_user_id"] == OTHER
+    response = await client.post(
+        ADMIN_PATH, json={**draft(), "manager_user_id": None}, headers=authorization(host)
+    )
+    assert response.status == 400

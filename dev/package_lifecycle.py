@@ -19,6 +19,7 @@ from bot.plugins.packages import (
 from bot.services.account_roles import grant_role
 from config.settings import get_settings
 from db.dal import user_dal
+from db.dal.user_reads_dal import get_user_by_id
 from db.database_setup import init_db_connection
 from sqlalchemy import text
 
@@ -224,7 +225,7 @@ async def main() -> None:
                             "SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'"
                         )
                     )
-                ) == 4
+                ) == 5
                 return rows
 
         before = await snapshot()
@@ -233,6 +234,56 @@ async def main() -> None:
         await enabled(True)
         assert await snapshot() == before
         print("PASS: disable/enable removes/restores routes and preserves contracts and history")
+
+        # A stopped plugin has no Python callback to clean up accounts. The
+        # installed schema must handle native deletion and survive re-enabling.
+        await enabled(False)
+        deleted_user = ACTOR + 1
+        async with factory.begin() as session:
+            await user_dal.create_user(session, {"user_id": deleted_user})
+            detached = Contract(
+                name="Synthetic deleted manager",
+                manager_user_id=deleted_user,
+                tariff_key="corp",
+                ends_at=datetime.now(UTC) + timedelta(days=30),
+                external_squad_uuid=UUID("20000000-0000-4000-8000-000000000001"),
+            )
+            session.add(detached)
+            await session.flush()
+            session.add(
+                Revision(
+                    contract_id=detached.id,
+                    version=1,
+                    name=detached.name,
+                    manager_user_id=deleted_user,
+                    actor_user_id=ACTOR,
+                    tariff_key=detached.tariff_key,
+                    ends_at=detached.ends_at,
+                    external_squad_uuid=detached.external_squad_uuid,
+                )
+            )
+            deleted_member = Membership(
+                contract_id=detached.id, user_id=deleted_user, current_user_id=deleted_user
+            )
+            session.add(deleted_member)
+            await session.flush()
+            detached_id, member_id = detached.id, deleted_member.id
+        async with http.delete(BASE + f"/api/admin/users/{deleted_user}") as response:
+            assert response.status == 200, await response.text()
+            assert (await response.json())["ok"] is True
+        async with factory() as session:
+            assert await get_user_by_id(session, deleted_user) is None
+            detached_after = await session.get(Contract, detached_id)
+            member_after = await session.get(Membership, member_id)
+            assert detached_after is not None and detached_after.manager_user_id is None
+            assert member_after is not None and member_after.state == "deleted"
+        before = await snapshot()
+        await enabled(True)
+        assert await snapshot() == before
+        async with http.get(BASE + f"/api/admin/minishop-corp/contracts/{detached_id}") as response:
+            assert response.status == 200, await response.text()
+            assert (await response.json())["contract"]["manager_user_id"] is None
+        print("PASS: native account deletion while disabled closes membership and clears manager")
 
         upgraded = await install(upgrade_archive)
         assert upgraded != original
@@ -257,7 +308,7 @@ async def main() -> None:
         await enabled(True)
         assert await snapshot() == before
         print(
-            "PASS: removal retains tables; reinstall reuses all four migrations without data loss"
+            "PASS: removal retains tables; reinstall reuses all five migrations without data loss"
         )
 
 
