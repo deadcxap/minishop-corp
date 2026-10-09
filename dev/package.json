@@ -1,5 +1,7 @@
 {
   "id": "minishop-corp",
+  "name": "Minishop Corp — корпоративные подписки",
+  "description": "Корпоративные подписки с общим сроком доступа, приглашениями и кабинетом управляющего. Тарифы, участники и условия настраиваются в админке Minishop.",
   "backend": {
     "entry_point": "minishop_corp:plugin"
   },
@@ -21,10 +23,13 @@
         "view": "corporate-contracts",
         "group": "operations",
         "order": 100,
-        "i18nKey": "admin_minishop_corp_title",
-        "fallbackLabel": "Corporate subscriptions",
-        "titleI18nKey": "admin_minishop_corp_title",
-        "fallbackTitle": "Corporate subscriptions"
+        "i18nKey": "minishop_corp_title",
+        "label": "Corporate subscriptions",
+        "titleI18nKey": "minishop_corp_title",
+        "title": "Corporate subscriptions",
+        "subtitleI18nKey": "minishop_corp_subtitle",
+        "subtitle": "Shared access dates and member management for corporate subscriptions.",
+        "icon": "key"
       }
     ],
     "user": {

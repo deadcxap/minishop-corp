@@ -18,10 +18,11 @@
 
 ## Совместимость
 
-Текущая версия — **0.1.6**. Проверенная база — **Minishop 3.8.1**, Linux x86_64,
-Python 3.12, Plugin API 1 и frontend host API 1. Ревизия ядра закреплена в
-[dev/minishop.json](dev/minishop.json). Совместимость с другими версиями Minishop
-не заявляется; работу с Remnawave обеспечивает сам Minishop.
+Текущая версия — **0.1.7**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
+frontend host API 1 и возможности Minishop `user_ui: 1`, `ui_composition: 1`.
+Установка проверяет эти возможности без привязки к конкретному commit ядра.
+Проверенная база — **Minishop 3.8.1** из [dev/minishop.json](dev/minishop.json);
+работу с Remnawave обеспечивает сам Minishop.
 
 Аккаунты с действующими или будущими гибкими квотами `FlexibleTrafficLimit`
 не поддерживаются. При вступлении личный тариф и срок заменяются корпоративными;

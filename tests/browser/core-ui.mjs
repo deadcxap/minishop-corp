@@ -57,6 +57,17 @@ try {
         }
         assert.deepEqual(errors, []);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        if (audience === "admin") {
+          const catalog = JSON.parse(await readFile(`locales/${language}.json`, "utf8"));
+          assert.equal(await page.locator('.admin-header h2').innerText(), catalog.admin_minishop_corp_title);
+          assert.equal(await page.locator('.admin-header small').innerText(), catalog.admin_minishop_corp_subtitle);
+          if (width === 1280) {
+            assert.equal(
+              (await page.locator('[data-admin-section="corporate-contracts"]').innerText()).trim(),
+              catalog.admin_minishop_corp_title,
+            );
+          }
+        }
         await page.locator('.minishop-corp').first().scrollIntoViewIfNeeded();
         await page.screenshot({ path: `.local/screenshots/core-${audience}-${language}-${width}.png` });
         if (audience === "admin") {

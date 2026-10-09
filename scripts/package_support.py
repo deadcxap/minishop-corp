@@ -142,14 +142,10 @@ def archive(key: Ed25519PrivateKey, manifest: dict[str, JSON], files: dict[str, 
     return output.getvalue()
 
 
-def manifest(publisher: str, *, development: bool = False) -> dict[str, JSON]:
+def manifest(publisher: str) -> dict[str, JSON]:
     if not re.fullmatch(r"[a-z][a-z0-9-]{1,63}", publisher):
         raise ValueError("Invalid publisher identifier")
     metadata = json_object(ROOT / "dev/package.json")
-    # Internal service/DAL imports are tested on this revision only. Capabilities
-    # alone would let an incompatible core accept a production package.
-    if not development:
-        metadata.pop("core_compatibility", None)
     pin = json_object(ROOT / "dev/minishop.json")
     return {
         **metadata,

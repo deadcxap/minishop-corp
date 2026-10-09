@@ -43,7 +43,7 @@ Actions устанавливает только зависимости сбор�
 
 ```text
 minishop-plugin.json
-packages/minishop-corp-0.1.6.zip
+packages/minishop-corp-0.1.7.zip
 publisher.pub
 SHA256SUMS
 ```
@@ -54,8 +54,12 @@ SHA256SUMS
 Ссылка на GitHub Release или внешний Actions ZIP в поле `artifact` не подходит.
 
 ZIP содержит Python backend, RU/EN и собранные JS/CSS. `plugin.json` внутри архива
-описывает Plugin API, entry points, runtime, ревизию Minishop, публичный ключ
-и хеши payload. `signatures/ed25519.sig` подписывает канонический manifest.
+содержит название и описание плагина, Plugin API, entry points, runtime, публичный
+ключ и хеши payload. Режим `core_compatibility.mode = capabilities` требует `user_ui: 1`
+и `ui_composition: 1`; `core_revision` указывает проверенную сборку Minishop,
+а не ограничивает установку одним commit. Релизные и локальные пакеты используют
+одинаковые требования совместимости. `signatures/ed25519.sig` подписывает
+канонический manifest.
 Приватный ключ, тесты, базы, кеши и исходные `.env` в пакет не входят.
 
 Генератор берёт версию из `pyproject.toml` и проверяет её совпадение с

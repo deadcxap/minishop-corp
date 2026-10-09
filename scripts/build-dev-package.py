@@ -12,7 +12,7 @@ def main() -> None:
     key = load_key(key_path)
     encoded, _ = public_key(key)
     (OUTPUT / "development.pub").write_text(encoded, encoding="ascii")
-    body = archive(key, manifest("minishop-corp-local-dev", development=True), payload())
+    body = archive(key, manifest("minishop-corp-local-dev"), payload())
     from bot.plugins.packages import inspect_archive
 
     candidate = inspect_archive(ROOT / ".local/package-validation", body)

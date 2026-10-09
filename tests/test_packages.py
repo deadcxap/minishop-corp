@@ -33,7 +33,6 @@ def files() -> dict[str, bytes]:
 def test_signature_reproducibility_and_trust(tmp_path: Path) -> None:
     key = Ed25519PrivateKey.generate()
     metadata = manifest("minishop-corp-test")
-    assert "core_compatibility" not in metadata
     user_ui = metadata["frontend"]["user"]
     assert [slot["target"] for slot in user_ui["slots"]] == ["user.settings.cards"]
     assert all(
@@ -93,12 +92,33 @@ def test_release_package_accepts_stable_core_revision(
     assert candidate.manifest["core_revision"] == revision
 
 
-def test_release_package_rejects_another_core_revision(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("revision", ["f" * 40, "f" * 8, None])
+def test_release_package_accepts_compatible_core_with_another_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, revision: str | None
 ) -> None:
-    monkeypatch.setattr("bot.plugins.packages._running_core_revision", lambda: "f" * 40)
+    monkeypatch.setattr("bot.plugins.packages._running_core_revision", lambda: revision)
     key = Ed25519PrivateKey.generate()
-    with pytest.raises(PluginPackageError, match="incompatible_core_revision"):
+    candidate = inspect_archive(tmp_path, archive(key, manifest("minishop-corp-test"), files()))
+    tested_revision = json.loads((ROOT / "dev/minishop.json").read_text())["revision"]
+    assert candidate.manifest["core_revision"] == tested_revision
+
+
+@pytest.mark.parametrize("capability", ["user_ui", "ui_composition"])
+@pytest.mark.parametrize("provided_version", [None, 2])
+def test_release_package_rejects_missing_or_incompatible_capability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capability: str,
+    provided_version: int | None,
+) -> None:
+    from bot.plugins.packages import CORE_PLUGIN_CAPABILITIES
+
+    if provided_version is None:
+        monkeypatch.delitem(CORE_PLUGIN_CAPABILITIES, capability)
+    else:
+        monkeypatch.setitem(CORE_PLUGIN_CAPABILITIES, capability, provided_version)
+    key = Ed25519PrivateKey.generate()
+    with pytest.raises(PluginPackageError, match="incompatible_core_capability"):
         inspect_archive(tmp_path, archive(key, manifest("minishop-corp-test"), files()))
 
 
