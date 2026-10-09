@@ -66,6 +66,10 @@ export function fixture() {
     if (parts[2] === "invitations") {
       if (method === "GET") return ok({ invitations: state.invitations.filter((row) => !url.searchParams.get("after") || row.id > url.searchParams.get("after")).slice(0, 25) });
       const old = state.invitations.find((row) => row.id === parts[3]);
+      if (method === "DELETE") {
+        if (old?.reserved_count) return fail("minishop_corp_invitation_busy", 409);
+        state.invitations = state.invitations.filter((row) => row.id !== parts[3]); return ok({});
+      }
       if (parts[4] === "revoke") { if (!old) return fail("minishop_corp_invitation_missing", 404); old.revoked_at = now; return ok({ invitation: old }); }
       const existing = state.invitations.find((row) => row.id === body.id);
       if (existing) return ok({ invitation: existing, code: existing.code, link: existing.link, created: false, notice: "minishop_corp_code_saved" });

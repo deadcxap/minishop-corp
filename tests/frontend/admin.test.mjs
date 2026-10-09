@@ -342,3 +342,15 @@ test("lookup misses and API errors expose the response diagnostic ID", async (co
   api.failList = true; await click("Refresh");
   assert.ok(target.querySelector('[role="alert"]').textContent.includes(DIAGNOSTIC_ID));
 });
+
+test('deleting a used invitation confirms, keeps members and retries a lost response', async (t) => {
+  const { api, target, click, submit, open } = setup(t); await open(); await click('Invitations');
+  await submit(); api.invitations[0].used_count = 1; await click('Refresh');
+  const code = target.querySelector('[name="code"]').value;
+  await click('Delete code'); await click('Cancel', target.querySelector('dialog')); assert.equal(api.invitations.length, 1);
+  api.loseNextWrite = true; await click('Delete code'); await click('Confirm', target.querySelector('dialog'));
+  await click('Retry the same request'); assert.equal(api.invitations.length, 0); assert.equal(api.members.length, 2);
+  assert.equal(target.querySelector('[name="code"]'), null); assert.ok(!target.textContent.includes(code));
+  assert.match(target.textContent, /Invitation code deleted/);
+  const calls = api.calls.filter(c => c.method === 'DELETE'); assert.equal(calls.length, 2); assert.equal(calls[0].path, calls[1].path);
+});

@@ -104,10 +104,22 @@ class Memberships:
                 PeriodTarget.model_validate(existing.target) if existing.kind == "join" else None
             )
             member = await session.get(Membership, existing.membership_id)
+            # Full invitation deletion detaches its live FK; the accepted intent
+            # remains verifiable from our non-secret reservation audit.
+            accepted_invitation = member.invitation_id if member is not None else None
+            if member is not None and accepted_invitation is None:
+                accepted_invitation = await session.scalar(
+                    select(AuditEvent.details["invitation_id"].astext)
+                    .where(
+                        AuditEvent.operation_id == existing.id,
+                        AuditEvent.action == "invitation_reserved",
+                    )
+                    .limit(1)
+                )
             if (
                 target is None
                 or member is None
-                or member.invitation_id != draft.offer.invitation_id
+                or str(accepted_invitation) != str(draft.offer.invitation_id)
                 or existing.contract_id != draft.offer.contract_id
                 or target.accepted_version != draft.offer.contract_version
             ):

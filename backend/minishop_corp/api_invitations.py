@@ -126,6 +126,20 @@ async def admin_revoke(request: web.Request) -> web.Response:
 
 
 @boundary
+async def admin_delete(request: web.Request) -> web.Response:
+    require_administrator(request)
+    async with request_actor(request) as actor:
+        await Invitations(ContractHost.from_request(request)).delete(
+            actor.session,
+            actor.user_id,
+            UUID(request.match_info["contract_id"]),
+            UUID(request.match_info["invitation_id"]),
+        )
+        await actor.session.commit()
+        return response({"ok": True})
+
+
+@boundary
 async def manager_collection(request: web.Request) -> web.Response:
     async with request_actor(request) as actor:
         page = ContractPage.model_validate(dict(request.query))
@@ -149,5 +163,6 @@ def setup_invitation_routes(app: web.Application) -> None:
     app.router.add_post(admin, admin_collection)
     app.router.add_post(admin + "/{invitation_id}/rotate", admin_rotate)
     app.router.add_post(admin + "/{invitation_id}/revoke", admin_revoke)
+    app.router.add_delete(admin + "/{invitation_id}", admin_delete)
     app.router.add_get(manager, manager_collection)
     app.router.add_post(manager + "/{invitation_id}/rotate", manager_rotate)

@@ -207,5 +207,9 @@
   "minishop_corp_retry_after": "Try again in {minutes} min.",
   "wa_minishop_corp_settings_join": "Activate with a code",
   "wa_minishop_corp_settings_unavailable": "Open corporate subscription",
-  "admin_minishop_corp_legacy_code": "This code was created in an earlier version and only its hash is stored. It still works. To see the text, issue a new single-use code or rotate the reusable code."
+  "admin_minishop_corp_legacy_code": "This code was created in an earlier version and only its hash is stored. It still works. To see the text, issue a new single-use code or rotate the reusable code.",
+  "admin_minishop_corp_delete_invitation": "Delete code",
+  "admin_minishop_corp_delete_invitation_hint": "The code will be permanently deleted and will no longer accept new members. Existing members keep their subscriptions.",
+  "admin_minishop_corp_invitation_deleted": "Invitation code deleted.",
+  "minishop_corp_invitation_busy": "An activation using this code is still pending. Wait for the operation to finish before deleting it."
 }

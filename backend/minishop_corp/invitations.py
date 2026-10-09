@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .contracts import Contracts
@@ -17,7 +17,15 @@ from .invitations_types import (
     code_digest,
     new_code,
 )
-from .storage.schema import AuditEvent, Contract, Invitation
+from .storage.schema import (
+    AuditEvent,
+    Contract,
+    Invitation,
+    InvitationPreview,
+    Membership,
+    Operation,
+    Reservation,
+)
 
 
 class Invitations:
@@ -76,9 +84,11 @@ class Invitations:
                 or existing.kind != draft.kind
                 or existing.use_limit != draft.use_limit
                 or existing.replaces_id is not None
+                or await self._recorded(session, contract_id, existing.id, "invitation_rotated")
             ):
                 raise ContractError("minishop_corp_request_conflict", 409)
             return self._issued(existing)
+        await self._require_not_deleted(session, contract_id, draft.id)
         if contract.ends_at <= (now or datetime.now(UTC)):
             raise ContractError("minishop_corp_contract_expired", 409)
         if draft.kind == "reusable":
@@ -105,14 +115,29 @@ class Invitations:
         now: datetime | None = None,
     ) -> IssuedInvitation:
         contract = await self.authorize(session, actor, contract_id, manager=manager, lock=True)
+        existing = await session.get(Invitation, draft.id, populate_existing=True)
+        if existing is not None:
+            replacement = (
+                existing.replaces_id == invitation_id
+                or await session.scalar(
+                    select(AuditEvent.id)
+                    .where(
+                        AuditEvent.contract_id == contract_id,
+                        AuditEvent.action == "invitation_rotated",
+                        AuditEvent.details["invitation_id"].astext == str(draft.id),
+                        AuditEvent.details["replaces_id"].astext == str(invitation_id),
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
+            if existing.contract_id != contract_id or not replacement:
+                raise ContractError("minishop_corp_request_conflict", 409)
+            return self._issued(existing)
+        await self._require_not_deleted(session, contract_id, draft.id)
         previous = await self._get(session, contract_id, invitation_id)
         if previous.kind != "reusable":
             raise ContractError("minishop_corp_invitation_missing", 404)
-        existing = await session.get(Invitation, draft.id, populate_existing=True)
-        if existing is not None:
-            if existing.contract_id != contract_id or existing.replaces_id != invitation_id:
-                raise ContractError("minishop_corp_request_conflict", 409)
-            return self._issued(existing)
         instant = now or datetime.now(UTC)
         if contract.ends_at <= instant:
             raise ContractError("minishop_corp_contract_expired", 409)
@@ -151,6 +176,89 @@ class Invitations:
             )
             await session.flush()
         return InvitationInfo.model_validate(row)
+
+    async def delete(
+        self, session: AsyncSession, actor: int, contract_id: UUID, invitation_id: UUID
+    ) -> None:
+        """Remove the secret, not the access or resolved operation history.
+
+        The contract lock serializes preview/confirmation/rotation/settlement.
+        Never discard an unresolved reservation, including an uncertain panel result.
+        """
+        await self.authorize(session, actor, contract_id, lock=True)
+        row = await session.scalar(
+            select(Invitation)
+            .where(Invitation.id == invitation_id, Invitation.contract_id == contract_id)
+            .execution_options(populate_existing=True)
+            .with_for_update()
+        )
+        if row is None:
+            return  # DELETE retries after a lost response are harmless.
+        held = await session.scalar(
+            select(Reservation.id)
+            .where(Reservation.invitation_id == invitation_id, Reservation.state == "held")
+            .limit(1)
+        )
+        pending = await session.scalar(
+            select(Operation.id)
+            .join(Membership, Membership.id == Operation.membership_id)
+            .where(
+                Membership.invitation_id == invitation_id,
+                Operation.kind == "join",
+                Operation.state.in_(("pending", "running", "retry")),
+            )
+            .limit(1)
+        )
+        if row.reserved_count or held is not None or pending is not None:
+            raise ContractError("minishop_corp_invitation_busy", 409)
+        await session.execute(
+            delete(InvitationPreview).where(InvitationPreview.invitation_id == invitation_id)
+        )
+        await session.execute(delete(Reservation).where(Reservation.invitation_id == invitation_id))
+        await session.execute(
+            update(Membership)
+            .where(Membership.invitation_id == invitation_id)
+            .values(invitation_id=None)
+        )
+        await session.execute(
+            update(Invitation)
+            .where(Invitation.replaces_id == invitation_id)
+            .values(replaces_id=None)
+        )
+        await session.delete(row)
+        session.add(
+            AuditEvent(
+                contract_id=contract_id,
+                actor_user_id=actor,
+                action="invitation_deleted",
+                details={"invitation_id": str(invitation_id)},
+            )
+        )
+        await session.flush()
+
+    @staticmethod
+    async def _recorded(
+        session: AsyncSession, contract_id: UUID, invitation_id: UUID, action: str
+    ) -> bool:
+        return (
+            await session.scalar(
+                select(AuditEvent.id)
+                .where(
+                    AuditEvent.contract_id == contract_id,
+                    AuditEvent.action == action,
+                    AuditEvent.details["invitation_id"].astext == str(invitation_id),
+                )
+                .limit(1)
+            )
+            is not None
+        )
+
+    async def _require_not_deleted(
+        self, session: AsyncSession, contract_id: UUID, invitation_id: UUID
+    ) -> None:
+        # An old create/rotate retry must never regenerate an intentionally deleted code.
+        if await self._recorded(session, contract_id, invitation_id, "invitation_deleted"):
+            raise ContractError("minishop_corp_invitation_missing", 404)
 
     @staticmethod
     async def _get(session: AsyncSession, contract_id: UUID, invitation_id: UUID) -> Invitation:

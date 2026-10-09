@@ -34,6 +34,14 @@ export class InvitationsPanel extends Panel {
       this.notice = "admin_minishop_corp_revoked_notice";
     }, true);
   }
+  async remove(row: Invitation): Promise<void> {
+    if (!await confirm(this.root, this.t("delete_invitation"), this.t("delete_invitation_hint"), this.language, this.controller.signal)) return;
+    await this.run(async () => {
+      await this.api.request(`${this.path}/${row.id}`, "DELETE");
+      this.rows = this.rows.filter((value) => value.id !== row.id);
+      this.notice = "admin_minishop_corp_invitation_deleted";
+    }, true);
+  }
   override failed(error: unknown): void {
     if (error instanceof ApiError && [401, 403, 404].includes(error.status)) this.rows = [];
   }
@@ -66,11 +74,15 @@ export class InvitationsPanel extends Panel {
         card.append(heading, el("p", `${this.t("issued_at")}: ${date(row.created_at, this.language)}`),
           el("p", `${this.t("used")}: ${row.used_count} / ${row.use_limit} · ${this.t("reserved")}: ${row.reserved_count}`));
         card.append(invitationCode(this, row));
+        const tools = el("div", undefined, "corp-actions");
         if (!row.revoked_at) {
-          const tools = el("div", undefined, "corp-actions");
           if (row.kind === "reusable" && !expired) tools.append(button(this.t("rotate"), () => { void this.issue(row); }));
-          tools.append(button(this.t("revoke"), () => { void this.revoke(row); }, "corp-danger")); card.append(tools);
+          tools.append(button(this.t("revoke"), () => { void this.revoke(row); }, "corp-danger"));
         }
+        const remove = button(this.t("delete_invitation"), () => { void this.remove(row); }, "corp-danger");
+        remove.disabled = row.reserved_count > 0;
+        if (remove.disabled) card.append(el("small", translate(this.language, "minishop_corp_invitation_busy")));
+        tools.append(remove); card.append(tools);
         rows.append(card);
       }
       body.append(rows);
