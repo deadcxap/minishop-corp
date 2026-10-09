@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/env.sh"
+bash scripts/check-minishop.sh
 .venv/bin/ruff check backend tests scripts dev
 .venv/bin/ruff format --check backend tests scripts dev
 .venv/bin/mypy

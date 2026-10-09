@@ -6,13 +6,12 @@ action="${1:-up}"
 shift || true
 case "$action" in
   up)
-    expected="$(python3 -c 'import json; print(json.load(open("dev/minishop.json"))["revision"])')"
-    [[ "$(git -C "$MINISHOP_SOURCE" rev-parse HEAD)" == "$expected" ]]
-    [[ -z "$(GIT_OPTIONAL_LOCKS=0 git -C "$MINISHOP_SOURCE" status --porcelain)" ]]
+    bash scripts/check-minishop.sh
     bash scripts/node.sh npm run build
     .venv/bin/python scripts/build-dev-package.py
     mkdir -p .local/runtime/data .local/runtime/tmp .local/build-context
     cp "$MINISHOP_SOURCE/backend/requirements.txt" .local/build-context/requirements.txt
+    git -C "$MINISHOP_SOURCE" rev-parse HEAD > .local/build-context/core-revision
     for directory in backend locales; do
       [[ -L ".local/runtime/$directory" ]] || ln -s "/minishop/$directory" ".local/runtime/$directory"
     done
@@ -20,6 +19,7 @@ case "$action" in
     docker compose -f dev/compose.yaml up -d --build --force-recreate "$@" backend worker preview
     ;;
   check)
+    bash scripts/check-minishop.sh
     docker compose -f dev/compose.yaml exec -T backend python /corp-dev/smoke.py
     ;;
   logs|ps|stop|down)

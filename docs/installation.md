@@ -1,7 +1,7 @@
 # Установка и эксплуатация
 
-Локальный кандидат — **minishop-corp 0.1.0**. Пакет и проверки подготовлены для
-Minishop `507563b06a564a26ecb10cd4c249dcd588cbff05`, Plugin API 1, frontend host API 1,
+Локальный кандидат — **minishop-corp 0.1.1**. Целевая база — стабильный **Minishop 3.8.1**,
+тег `v3.8.1`, commit `bc3379812b370ed4420b97338fc24fce5c87f1a6`, Plugin API 1, frontend host API 1,
 Linux x86_64 и Python 3.12. Интерфейсы требуют `user_ui: 1` и `ui_composition: 1`.
 Пакет использует внутренние сервисы этой ревизии, поэтому совместимость с другими
 версиями Minishop не заявляется. Релизный manifest требует совпадения `core_revision`;
@@ -46,7 +46,7 @@ Actions получает секрет только в шаге подписи и
 
 1. Откройте **Actions → Signed plugin package → нужный запуск → Artifacts**.
 2. Скачайте `minishop-corp-<полный SHA commit>` и распакуйте внешний архив GitHub.
-3. Внутри найдите `packages/minishop-corp-0.1.0.zip` и его SHA-256 в `SHA256SUMS`.
+3. Внутри найдите `packages/minishop-corp-0.1.1.zip` и его SHA-256 в `SHA256SUMS`.
    Этот **внутренний ZIP** загружается в раздел **Плагины** Minishop.
    Внешний архив GitHub не является пакетом плагина.
 
@@ -102,7 +102,7 @@ python scripts/build-package.py build --key .local/publisher/minishop-corp.key
 
 Результат в `dist/release/`:
 
-- `packages/minishop-corp-0.1.0.zip` — готовый подписанный пакет;
+- `packages/minishop-corp-0.1.1.zip` — готовый подписанный пакет;
 - `minishop-plugin.json` — индекс для установщика из репозитория;
 - `publisher.pub` — открытый ключ в base64;
 - `SHA256SUMS` — SHA-256 ZIP для сверки.

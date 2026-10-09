@@ -75,6 +75,19 @@ def test_signing_key_is_private_and_never_silently_replaced(tmp_path: Path) -> N
         load_key(path)
 
 
+@pytest.mark.parametrize("revision_length", [40, 28])
+def test_release_package_accepts_stable_core_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, revision_length: int
+) -> None:
+    revision = json.loads((ROOT / "dev/minishop.json").read_text())["revision"]
+    monkeypatch.setattr(
+        "bot.plugins.packages._running_core_revision", lambda: revision[:revision_length]
+    )
+    key = Ed25519PrivateKey.generate()
+    candidate = inspect_archive(tmp_path, archive(key, manifest("minishop-corp-test"), files()))
+    assert candidate.manifest["core_revision"] == revision
+
+
 def test_release_package_rejects_another_core_revision(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

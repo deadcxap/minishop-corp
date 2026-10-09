@@ -1,6 +1,7 @@
 {
   "repository": "https://gitlab.com/3252a8/remnawave-minishop.git",
-  "revision": "507563b06a564a26ecb10cd4c249dcd588cbff05",
+  "release": "v3.8.1",
+  "revision": "bc3379812b370ed4420b97338fc24fce5c87f1a6",
   "plugin_api": 1,
   "frontend_host_api": 1,
   "node_image": "node:24-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6",
