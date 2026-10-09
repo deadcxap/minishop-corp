@@ -354,3 +354,16 @@ test('deleting a used invitation confirms, keeps members and retries a lost resp
   assert.match(target.textContent, /Invitation code deleted/);
   const calls = api.calls.filter(c => c.method === 'DELETE'); assert.equal(calls.length, 2); assert.equal(calls[0].path, calls[1].path);
 });
+
+test('assigning a manager from members confirms and retries the same version without changing terms', async (t) => {
+  const { api, target, click, open } = setup(t); await open(); await click('Members');
+  const member = api.members[0], original = { ...api.contracts[0] };
+  const card = () => target.querySelector(`[data-member="${member.id}"]`);
+  await click('Make manager', card()); await click('Cancel', target.querySelector('dialog')); assert.equal(api.contracts[0].version, 1);
+  api.loseNextWrite = true; await click('Make manager', card()); await click('Confirm', target.querySelector('dialog'));
+  await click('Retry the same request'); assert.equal(api.contracts[0].version, 2);
+  assert.equal(api.contracts[0].manager_user_id, member.profile.user_id);
+  for (const key of ['name', 'tariff_key', 'ends_at', 'external_squad_uuid']) assert.equal(api.contracts[0][key], original[key]);
+  assert.equal([...card().querySelectorAll('button')].find(b => b.textContent === 'Subscription manager').disabled, true);
+  const calls = api.calls.filter(c => c.path.endsWith('/manager')); assert.equal(calls.length, 2); assert.deepEqual(calls[0].body, calls[1].body);
+});

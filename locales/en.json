@@ -211,5 +211,9 @@
   "admin_minishop_corp_delete_invitation": "Delete code",
   "admin_minishop_corp_delete_invitation_hint": "The code will be permanently deleted and will no longer accept new members. Existing members keep their subscriptions.",
   "admin_minishop_corp_invitation_deleted": "Invitation code deleted.",
-  "minishop_corp_invitation_busy": "An activation using this code is still pending. Wait for the operation to finish before deleting it."
+  "minishop_corp_invitation_busy": "An activation using this code is still pending. Wait for the operation to finish before deleting it.",
+  "admin_minishop_corp_make_manager": "Make manager",
+  "admin_minishop_corp_current_manager": "Subscription manager",
+  "admin_minishop_corp_make_manager_hint": "This member will manage this corporate subscription. The previous manager will lose this role. Their own subscription and global Minishop permissions will stay unchanged.",
+  "admin_minishop_corp_manager_assigned": "Subscription manager assigned."
 }

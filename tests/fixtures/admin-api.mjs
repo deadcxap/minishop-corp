@@ -86,6 +86,12 @@ export function fixture() {
       const row = state.members.find((row) => row.id === parts[3]);
       if (!row) return fail("minishop_corp_membership_missing", 404);
       if (parts[4] === "avatar") return ok({ avatar: { data_url: PNG, state: "available", updated_at: now } });
+      if (parts[4] === "manager") {
+        if (row.state !== "active") return fail("minishop_corp_membership_missing", 404);
+        if (current.manager_user_id === row.profile.user_id && [body.expected_version, body.expected_version + 1].includes(current.version)) return ok({ contract: current });
+        if (body.expected_version !== current.version) return fail("minishop_corp_version_conflict", 409);
+        current.manager_user_id = row.profile.user_id; current.version++; return ok({ contract: current });
+      }
       if (parts[4] === "exclude") {
         state.pending = true; row.state = "leaving";
         row.operation = { id: body.request_id, membership_id: row.id, kind: "exclude", state: "pending", attempts: 0, error_code: null, next_attempt_at: now, updated_at: now };

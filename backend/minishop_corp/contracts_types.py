@@ -50,6 +50,12 @@ class UpdateContract(ContractTerms):
     expected_version: Version
 
 
+class AssignManager(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    expected_version: Version
+
+
 class ContractSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 

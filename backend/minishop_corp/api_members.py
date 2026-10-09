@@ -4,8 +4,9 @@ from uuid import UUID
 
 from aiohttp import web
 
-from .api_contracts import boundary, response
-from .contracts_types import ContractError, ContractPage
+from .api_contracts import body, boundary, response
+from .contracts import Contracts
+from .contracts_types import AssignManager, ContractError, ContractPage
 from .integration.auth import require_administrator
 from .integration.contracts import ContractHost, request_actor
 from .members import Members
@@ -51,9 +52,28 @@ async def avatar(request: web.Request) -> web.Response:
 
 
 def setup_member_routes(app: web.Application) -> None:
+    app.router.add_post(
+        "/api/admin/minishop-corp/contracts/{contract_id}/members/{membership_id}/manager",
+        assign_manager,
+    )
     for prefix in (
         "/api/admin/minishop-corp/contracts/{contract_id}",
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}",
     ):
         app.router.add_get(prefix + "/members", collection)
         app.router.add_get(prefix + "/members/{membership_id}/avatar", avatar)
+
+
+@boundary
+async def assign_manager(request: web.Request) -> web.Response:
+    require_administrator(request)
+    async with request_actor(request) as actor:
+        result = await Contracts(ContractHost.from_request(request)).assign_manager(
+            actor.session,
+            actor.user_id,
+            UUID(request.match_info["contract_id"]),
+            UUID(request.match_info["membership_id"]),
+            await body(request, AssignManager),
+        )
+        await actor.session.commit()
+        return response({"ok": True, "contract": result.model_dump(mode="json")})

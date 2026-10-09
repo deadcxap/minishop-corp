@@ -9,8 +9,9 @@ export class MembersPanel extends Panel {
   rows: CorporateMember[] = []; after: string | null = null; loaded = false;
   avatars = new Map<string, MemberAvatar>(); private loadingAvatars = false; private generation = 0;
   private timer: ReturnType<typeof setInterval>;
-  constructor(language: string, private current: () => { id: string; member_count?: number },
-    private scope: "admin" | "manager" = "admin", client?: (signal: AbortSignal) => ApiClient) {
+  constructor(language: string, private current: () => { id: string; member_count?: number; manager_user_id?: number | null },
+    private scope: "admin" | "manager" = "admin", client?: (signal: AbortSignal) => ApiClient,
+    private promote?: (row: CorporateMember) => Promise<void>) {
     super(language, client); void this.run(() => this.load());
     this.timer = setInterval(() => {
       if (this.root.hidden || document.hidden || this.busy || this.retry || this.confirming || this.rows.length > 25
@@ -124,6 +125,11 @@ export class MembersPanel extends Panel {
           const metric = el("div", undefined, "corp-metric"); metric.append(el("small", this.t(label)), this.metric(used, bytes), el("span", "/"), this.metric(max, bytes, true)); card.append(metric);
         }
         const tools = el("div", undefined, "corp-stack"); tools.append(el("span", this.t(`state_${row.state}`), "corp-pill"));
+        if (this.scope === "admin" && this.promote) {
+          const assigned = this.current().manager_user_id === row.profile.user_id;
+          const manager = button(this.t(assigned ? "current_manager" : "make_manager"), () => { void this.promote?.(row); });
+          manager.disabled = assigned || row.state !== "active"; tools.append(manager);
+        }
         if (row.operation && row.operation.state !== "succeeded") {
           tools.append(el("small", this.t(`state_${row.operation.state}`)));
           if (row.operation.error_code) tools.append(el("small", translate(this.language, "minishop_corp_operation_failed")));

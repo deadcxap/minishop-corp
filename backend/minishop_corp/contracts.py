@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .contracts_types import (
+    AssignManager,
     ContractDetails,
     ContractError,
     ContractPage,
@@ -101,6 +102,37 @@ class Contracts:
     ) -> ContractDetails:
         await self.host.require_admin(session, actor)
         return await self._details(session, await self._get(session, contract_id))
+
+    async def assign_manager(
+        self,
+        session: AsyncSession,
+        actor: int,
+        contract_id: UUID,
+        membership_id: UUID,
+        draft: AssignManager,
+    ) -> ContractDetails:
+        await self.host.require_admin(session, actor)
+        identity = await session.get(Membership, membership_id)
+        if identity is None or identity.contract_id != contract_id:
+            raise ContractError("minishop_corp_membership_missing", 404)
+        # Native deletion and departure take the same account -> contract -> member locks.
+        await self.host.lock_accounts(session, [actor, identity.user_id])
+        row = await self._get(session, contract_id, lock=True)
+        await session.refresh(identity, with_for_update=True)
+        if identity.current_user_id != identity.user_id or identity.state != "active":
+            raise ContractError("minishop_corp_membership_missing", 404)
+        if row.manager_user_id == identity.user_id and row.version in (
+            draft.expected_version,
+            draft.expected_version + 1,
+        ):
+            return await self._details(session, row)
+        if row.version != draft.expected_version:
+            raise ContractError("minishop_corp_version_conflict", 409)
+        row.manager_user_id = identity.user_id
+        row.version += 1
+        row.updated_at = datetime.now(UTC)
+        await self._record(session, row, actor, "manager_assigned_from_members")
+        return await self._details(session, row)
 
     async def admin_list(
         self, session: AsyncSession, actor: int, page: ContractPage

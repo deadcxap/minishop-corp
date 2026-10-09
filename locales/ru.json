@@ -211,5 +211,9 @@
   "admin_minishop_corp_delete_invitation": "Удалить код",
   "admin_minishop_corp_delete_invitation_hint": "Код будет полностью удалён. Новые подключения по нему станут невозможны. Подписки уже подключённых участников сохранятся.",
   "admin_minishop_corp_invitation_deleted": "Код приглашения удалён.",
-  "minishop_corp_invitation_busy": "Код используется в незавершённом подключении. Дождитесь завершения операции перед удалением."
+  "minishop_corp_invitation_busy": "Код используется в незавершённом подключении. Дождитесь завершения операции перед удалением.",
+  "admin_minishop_corp_make_manager": "Назначить управляющим",
+  "admin_minishop_corp_current_manager": "Управляющий подпиской",
+  "admin_minishop_corp_make_manager_hint": "Участник получит доступ к управлению этой корпоративной подпиской. Прежний управляющий потеряет эту роль. Личная подписка и глобальные права Minishop не изменятся.",
+  "admin_minishop_corp_manager_assigned": "Управляющий подпиской назначен."
 }

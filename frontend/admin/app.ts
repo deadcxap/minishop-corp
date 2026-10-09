@@ -1,6 +1,7 @@
 import { translate } from "../shared/i18n";
 import { ApiError, number } from "../shared/api";
-import { Panel, button, confirm, date, el } from "../shared/ui";
+import { Panel, button, confirm, date, el, person } from "../shared/ui";
+import type { CorporateMember } from "../shared/members";
 import { contract, list, type Contract } from "./data";
 import { Editor } from "./editor";
 import { InvitationsPanel } from "./invitations";
@@ -85,6 +86,19 @@ export class AdminView extends Panel {
     if (!await this.canLeave() || !this.alive) return;
     this.clearPanels(); this.mode = "list"; this.current = null; await this.run(() => this.load());
   }
+  async assignManager(member: CorporateMember): Promise<void> {
+    if (!this.current || this.confirming || !await this.canLeave()) return;
+    const current = this.current;
+    if (!await confirm(this.root, this.t("make_manager"), `${person(member.profile)}\n${this.t("make_manager_hint")}`, this.language, this.controller.signal)) return;
+    const payload = { expected_version: current.version };
+    await this.run(async () => {
+      const saved = contract((await this.api.request(`/contracts/${current.id}/members/${member.id}/manager`, "POST", payload)).contract);
+      this.current = saved; this.rows = this.rows.map((row) => row.id === saved.id ? saved : row);
+      this.panels.get("terms")?.destroy(); this.panels.delete("terms"); this.restoredEditor = null;
+      this.panels.get("members")?.render();
+      this.notice = "admin_minishop_corp_manager_assigned";
+    }, true);
+  }
   panel(tab: Tab): Panel {
     const existing = this.panels.get(tab); if (existing) return existing;
     const current = (): Contract => { if (!this.current) throw new Error("missing_contract"); return this.current; };
@@ -93,7 +107,7 @@ export class AdminView extends Panel {
       this.current = value; this.mode = "detail";
       this.rows = this.rows.map((row) => row.id === value.id ? value : row);
       this.render();
-    }, this.restoredEditor) : tab === "members" ? new MembersPanel(this.language, current)
+    }, this.restoredEditor) : tab === "members" ? new MembersPanel(this.language, current, "admin", undefined, (row) => this.assignManager(row))
       : tab === "invitations" ? new InvitationsPanel(this.language, current)
         : new SynchronizationPanel(this.language, current);
     if (tab === "terms") this.restoredEditor = null;

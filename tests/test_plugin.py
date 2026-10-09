@@ -73,6 +73,7 @@ def test_routes_only_in_webapp(context: PluginContext) -> None:
         "/api/plugins/minishop-corp/contracts/{contract_id}",
         "/api/admin/minishop-corp/contracts/{contract_id}/members",
         "/api/admin/minishop-corp/contracts/{contract_id}/members/{membership_id}/avatar",
+        "/api/admin/minishop-corp/contracts/{contract_id}/members/{membership_id}/manager",
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}/members",
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}/members/{membership_id}/avatar",
         "/api/plugins/minishop-corp/invitations/preview",
