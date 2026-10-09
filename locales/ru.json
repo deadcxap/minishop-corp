@@ -210,5 +210,7 @@
   "admin_minishop_corp_invalid_date": "Укажите корректную дату окончания.",
   "admin_minishop_corp_retry_load": "Повторить загрузку",
   "minishop_corp_account_ambiguous": "Число соответствует разным аккаунтам. Используйте ID Minishop (ms_…), @username или email.",
-  "admin_minishop_corp_telegram_id": "Telegram ID"
+  "admin_minishop_corp_telegram_id": "Telegram ID",
+  "minishop_corp_internal_error": "Внутренняя ошибка плагина.",
+  "minishop_corp_diagnostic_id": "Код диагностики: {id}"
 }

@@ -20,6 +20,7 @@ export class Editor extends Panel {
   tariffs: Tariff[] = []; selected: Account | null = null; candidate: Account | null = null;
   verified: Squad | null = null; query = ""; searched = false;
   loaded = false;
+  searchDiagnostic: string | null = null;
   pending: Submission | null = null;
   constructor(language: string, current: Contract | null, private saved: (value: Contract) => void, draft: EditorDraft | null = null) {
     super(language); this.original = current; this.id = draft?.id ?? current?.id ?? requestId();
@@ -66,6 +67,7 @@ export class Editor extends Panel {
   async search(): Promise<void> {
     if (!this.query.trim()) return;
     const result = await this.api.request(`/options/accounts?q=${encodeURIComponent(this.query.trim())}`);
+    this.searchDiagnostic = this.api.lastRequestId ?? null;
     this.candidate = list(result.accounts, account)[0] ?? null; this.searched = true;
   }
   async submit(): Promise<void> {
@@ -147,7 +149,7 @@ export class Editor extends Panel {
       const managers = el("div", undefined, "corp-wide corp-stack");
       if (this.managerId === null && !this.query.trim()) managers.append(el("p", this.t("manager_missing"), "corp-footnote"));
       const search = input("manager", this.query, (v) => {
-        this.query = v; this.managerId = null; this.selected = null; this.candidate = null; this.searched = false; this.render();
+        this.query = v; this.managerId = null; this.selected = null; this.candidate = null; this.searched = false; this.searchDiagnostic = null; this.render();
       }); search.maxLength = 320; search.placeholder = this.t("account_query"); search.autocomplete = "off";
       search.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); void this.run(() => this.search()); } });
       managers.append(field(this.t("manager"), search, this.t("manager_hint")));
@@ -161,7 +163,10 @@ export class Editor extends Panel {
         result.append(el("p", `${person(candidate)} · ${candidate.minishop_id}${candidate.username ? ` · @${candidate.username}` : ""}${candidate.telegram_id ? ` · ${this.t("telegram_id")}: ${candidate.telegram_id}` : ""}`),
           button(this.t("confirm_manager"), () => { this.managerId = candidate.user_id; this.selected = candidate; this.candidate = null; this.render(); }));
         managers.append(result);
-      } else if (this.searched && !this.selected) managers.append(el("p", this.t("empty_accounts")));
+      } else if (this.searched && !this.selected) {
+        managers.append(el("p", this.t("empty_accounts")));
+        if (this.searchDiagnostic) managers.append(el("small", translate(this.language, "minishop_corp_diagnostic_id").replace("{id}", this.searchDiagnostic)));
+      }
       if (this.managerId !== null) managers.append(el("p", `${this.t("manager_selected")}: ${this.selected ? person(this.selected) : ""} · ${this.selected?.minishop_id ?? "#" + this.managerId}`, "corp-notice"));
       const save = el("button", this.t("save"), "corp-button corp-primary"); save.type = "submit";
       form.append(squadBox, managers, save);

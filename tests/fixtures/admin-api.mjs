@@ -4,6 +4,7 @@ export const SQUAD_ID = "20000000-0000-4000-8000-000000000001";
 export const MEMBER_ID = "50000000-0000-4000-8000-000000000001";
 export const MINISHOP_ID = "ms_40000000000040008000000000000001";
 export const TELEGRAM_ID = 771234567;
+export const DIAGNOSTIC_ID = "1234567890abcdef1234567890abcdef";
 export const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aTgAAAABJRU5ErkJggg==";
 const now = "2030-01-01T00:00:00Z";
 const profile = { user_id: 910011, first_name: "Fixture", last_name: "Manager", username: "fixture_manager", telegram_url: "https://t.me/fixture_manager" };

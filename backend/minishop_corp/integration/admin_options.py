@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..contracts_types import ContractError
+from ..diagnostics import event
 from ..invitations_types import TariffOffer
 from ..member_types import MemberProfile
 from .contracts import ContractHost
@@ -97,20 +98,25 @@ class AdminOptions:
     async def accounts(self, session: AsyncSession, query: AccountQuery) -> AccountChoices:
         value = query.q
         if query.user_id is not None:
+            kind = "internal_id"
             # Reopening a stored assignment uses its canonical internal identity,
             # which must not be confused with another account's Telegram id.
             row = await get_user_by_id(session, query.user_id)
         elif not value:
+            event("account_lookup", query_kind="empty", result="not_found")
             return AccountChoices(accounts=[], next_page=None)
         elif value.lower().startswith("ms_"):
+            kind = "minishop_id"
             # Minishop 3.8.1 has no public-id DAL helper. Use the same exact
             # read-only model query as its native admin user detail endpoint.
             row = await session.scalar(select(User).where(User.minishop_id == value.lower()))
         elif "@" in value and not value.startswith("@"):
+            kind = "email"
             row = await get_user_by_verified_email_address(session, value)
             if row is None:
                 row = await get_user_by_email(session, value)
         elif value.removeprefix("-").isdecimal():
+            kind = "numeric_id"
             identifier = int(value) if len(value) <= 20 else 2**63
             row = (
                 await get_user_by_id(session, identifier)
@@ -123,10 +129,22 @@ class AdminOptions:
                 else None
             )
             if row is not None and telegram is not None and row.user_id != telegram.user_id:
+                event("account_lookup", query_kind=kind, result="ambiguous")
                 raise ContractError("minishop_corp_account_ambiguous", 422)
+            if row is not None:
+                kind = "internal_id"
+            elif telegram is not None:
+                kind = "telegram_id"
             row = row if row is not None else telegram
         else:
+            kind = "username"
             row = await get_user_by_username(session, value)
+        event(
+            "account_lookup",
+            query_kind=kind,
+            result="not_found" if row is None else "blocked" if row.is_banned else "matched",
+            matched_user_id=int(row.user_id) if row is not None and not row.is_banned else None,
+        )
         return AccountChoices(
             accounts=[AccountRecord.model_validate(row).choice()]
             if row is not None and not row.is_banned

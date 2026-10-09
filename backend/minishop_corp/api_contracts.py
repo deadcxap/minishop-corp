@@ -1,7 +1,10 @@
 """Contract API; native authentication and CSRF middleware remain authoritative."""
 
+import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from functools import wraps
+from time import monotonic
 from uuid import UUID
 
 from aiohttp import web
@@ -10,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .contracts import Contracts, summary_of
 from .contracts_types import ContractError, ContractPage, CreateContract, UpdateContract
+from .diagnostics import event, failure, request_scope
 from .integration.auth import require_administrator
 from .integration.contracts import ContractHost, request_actor
 
@@ -23,15 +27,50 @@ def response(payload: dict[str, object], *, status: int = 200) -> web.Response:
 def boundary(handler: Handler) -> Handler:
     @wraps(handler)
     async def wrapped(request: web.Request) -> web.Response:
-        try:
-            return await handler(request)
-        except (ValidationError, ValueError):
-            return response({"ok": False, "error": "minishop_corp_invalid_request"}, status=400)
-        except ContractError as exc:
-            return response({"ok": False, "error": exc.code}, status=exc.status)
-        except IntegrityError:
-            # Concurrent create/update/deletion: do not expose schema or account data.
-            return response({"ok": False, "error": "minishop_corp_request_conflict"}, status=409)
+        with request_scope() as identifier:
+            started = monotonic()
+            code: str | None = None
+            try:
+                result = await handler(request)
+            except asyncio.CancelledError:
+                event("api_cancelled", handler=handler.__name__, method=request.method)
+                raise
+            except web.HTTPException as exc:
+                exc.headers["X-Corp-Request-ID"] = identifier
+                event(
+                    "api_request",
+                    handler=handler.__name__,
+                    method=request.method,
+                    status=exc.status,
+                )
+                raise
+            except (ValidationError, ValueError):
+                code = "minishop_corp_invalid_request"
+                result = response({"ok": False, "error": code}, status=400)
+            except ContractError as exc:
+                code = exc.code
+                result = response({"ok": False, "error": code}, status=exc.status)
+            except IntegrityError:
+                # Concurrent create/update/deletion: no schema or account data.
+                code = "minishop_corp_request_conflict"
+                result = response({"ok": False, "error": code}, status=409)
+            except Exception as exc:
+                code = "minishop_corp_internal_error"
+                event("api_failure", level=logging.ERROR, handler=handler.__name__, **failure(exc))
+                result = response({"ok": False, "error": code}, status=500)
+            result.headers["X-Corp-Request-ID"] = identifier
+            event(
+                "api_request",
+                level=logging.INFO
+                if result.status >= 400 or request.method not in {"GET", "HEAD"}
+                else logging.DEBUG,
+                handler=handler.__name__,
+                method=request.method,
+                status=result.status,
+                error_code=code,
+                elapsed_ms=round((monotonic() - started) * 1000, 1),
+            )
+            return result
 
     return wrapped
 

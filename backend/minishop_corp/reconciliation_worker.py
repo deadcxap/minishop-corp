@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .diagnostics import event, failure
 from .storage.reconciliation import candidates, schedule_member
 from .storage.sweeps import SweepLease, claim_sweep, finish_sweep_batch, sweep_candidates
 
@@ -28,7 +29,12 @@ async def dispatch_members(
             raise
         except Exception as exc:
             # Only this member rolls back. A later traversal retries the unmarked row.
-            logger.error("Reconciliation dispatch %s failed (%s)", member_id, type(exc).__name__)
+            event(
+                "reconciliation_dispatch_failure",
+                level=logging.ERROR,
+                membership_id=str(member_id),
+                **failure(exc),
+            )
 
 
 async def dispatch_sweep_batch(sessions: Callable[[], AsyncSession]) -> bool:
@@ -43,6 +49,7 @@ async def dispatch_sweep_batch(sessions: Callable[[], AsyncSession]) -> bool:
         await finish_sweep_batch(
             session, lease, batch[-1] if batch else None, now=datetime.now(UTC)
         )
+    event("reconciliation_batch", run_id=str(lease.run_id), members=len(batch))
     return bool(batch)
 
 
@@ -61,5 +68,5 @@ async def run_reconciliation(sessions: Callable[[], AsyncSession]) -> None:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.error("Reconciliation batch failed (%s)", type(exc).__name__)
+            event("reconciliation_failure", level=logging.ERROR, **failure(exc))
             await asyncio.sleep(5)

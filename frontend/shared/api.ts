@@ -1,6 +1,6 @@
 /** Admin extensions in the pinned host use same-origin cookies and its CSRF cookie. */
 export class ApiError extends Error {
-  constructor(readonly code: string, readonly status = 0, readonly retryAfter: number | null = null) { super(code); }
+  constructor(readonly code: string, readonly status = 0, readonly retryAfter: number | null = null, readonly diagnosticId: string | null = null) { super(code); }
   get uncertain(): boolean { return this.status === 0 || this.status >= 500; }
 }
 
@@ -44,12 +44,15 @@ export function choice<T extends string>(value: unknown, choices: readonly T[]):
 }
 
 export interface ApiClient {
+  readonly lastRequestId?: string | null;
   request(path: string, method?: string, body?: object): Promise<ObjectValue>;
 }
 
 export class AdminApi implements ApiClient {
+  lastRequestId: string | null = null;
   constructor(readonly signal: AbortSignal) {}
   async request(path: string, method = "GET", body?: object): Promise<ObjectValue> {
+    this.lastRequestId = null;
     const headers: Record<string, string> = { Accept: "application/json" };
     if (body !== undefined) headers["Content-Type"] = "application/json";
     if (method !== "GET") {
@@ -61,12 +64,14 @@ export class AdminApi implements ApiClient {
         method, headers, credentials: "same-origin", signal: this.signal,
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
+      const identifier = response.headers.get("X-Corp-Request-ID") ?? response.headers.get("X-Request-ID");
+      this.lastRequestId = identifier && /^[a-f0-9]{32}$/i.test(identifier) ? identifier : null;
       let data: ObjectValue;
       try { data = object(await response.json()); }
-      catch { throw new ApiError("request_failed", response.ok ? 0 : response.status); }
+      catch { throw new ApiError("request_failed", response.ok ? 0 : response.status, null, this.lastRequestId); }
       if (!response.ok || data.ok !== true) {
         throw new ApiError(typeof data.error === "string" ? data.error : "request_failed",
-          response.ok && data.ok !== false ? 0 : response.status);
+          response.ok && data.ok !== false ? 0 : response.status, null, this.lastRequestId);
       }
       return data;
     } catch (error) {

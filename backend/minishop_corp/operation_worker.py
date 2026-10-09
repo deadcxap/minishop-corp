@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .contracts import Contracts
 from .contracts_types import ContractError
+from .diagnostics import FieldValue, event, failure
 from .integration.access import AccessAdapter
 from .integration.access_types import AccessError, DisabledAccess
 from .integration.contracts import ContractHost
@@ -180,7 +181,12 @@ class OperationWorker:
             except Exception as exc:
                 await effects.rollback()
                 # Never log provider payloads, request bodies or exception text.
-                logger.error("Operation %s failed (%s)", operation.id, type(exc).__name__)
+                event(
+                    "operation_failure",
+                    level=logging.ERROR,
+                    operation_id=str(operation.id),
+                    **failure(exc),
+                )
                 self._retry(operation, "minishop_corp_operation_failed")
                 await session.flush()
                 return False
@@ -244,6 +250,31 @@ class OperationWorker:
         operation.lease_until = None
         operation.updated_at = datetime.now(UTC)
 
+    async def deliver(self, sessions: Callable[[], AsyncSession], lease: Lease) -> bool:
+        fields: dict[str, FieldValue] | None = None
+        async with sessions() as session, session.begin():
+            applied = await self.execute(session, lease)
+            row = await session.get(Operation, lease.operation_id)
+            if row is not None:
+                fields = {
+                    "operation_id": str(row.id),
+                    "contract_id": str(row.contract_id),
+                    "user_id": row.user_id,
+                    "kind": row.kind,
+                    "state": row.state,
+                    "attempts": row.attempts,
+                    "error_code": row.error_code,
+                    "applied": applied,
+                }
+        # Report the committed state, never a result from a rolled-back transaction.
+        if fields is not None:
+            event(
+                "operation_result",
+                level=logging.WARNING if fields["state"] == "retry" else logging.INFO,
+                **fields,
+            )
+        return applied
+
     async def run(self, sessions: Callable[[], AsyncSession]) -> None:
         logger.info("Corporate membership operation worker started")
         while True:
@@ -253,11 +284,10 @@ class OperationWorker:
                 if lease is None:
                     await asyncio.sleep(2)
                     continue
-                async with sessions() as session, session.begin():
-                    await self.execute(session, lease)
+                await self.deliver(sessions, lease)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 # A crash before recording a retry is recovered by lease expiry.
-                logger.error("Operation worker iteration failed (%s)", type(exc).__name__)
+                event("operation_loop_failure", level=logging.ERROR, **failure(exc))
                 await asyncio.sleep(5)

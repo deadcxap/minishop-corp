@@ -42,6 +42,20 @@ try {
           await page.getByRole("button", { name: label, exact: true }).click();
           const name = page.locator('.minishop-corp [name="name"]');
           await name.waitFor();
+          const managerId = sessions[`${audience}-${language}-${width}-manager`];
+          const choices = await (await page.request.get(base + `/api/admin/minishop-corp/options/accounts?user_id=${managerId}`)).json();
+          const manager = choices.accounts[0];
+          assert.notEqual(manager.telegram_id, manager.user_id);
+          for (const identifier of [manager.minishop_id, String(manager.telegram_id)]) {
+            await page.locator('[name="manager"]').fill(identifier);
+            const found = page.waitForResponse((reply) => reply.url().includes("/options/accounts?q="));
+            await page.getByRole("button", { name: language === "ru" ? "Найти аккаунт" : "Find account", exact: true }).click();
+            const reply = await found; assert.equal(reply.status(), 200);
+            assert.equal((await reply.json()).accounts[0].user_id, manager.user_id);
+            assert.match(reply.headers()["x-corp-request-id"], /^[a-f0-9]{32}$/);
+            await page.getByRole("button", { name: language === "ru" ? "Подтвердить управляющего" : "Confirm manager", exact: true }).click();
+          }
+          await page.getByRole("button", { name: language === "ru" ? "Не назначать управляющего" : "Leave without a manager", exact: true }).click();
           await name.fill("Full-shell retained draft");
           const plans = await page.locator('[name="tariff"] option').evaluateAll((rows) => rows.map((row) => row.value).filter(Boolean));
           if (plans[0]) await page.locator('[name="tariff"]').selectOption(plans[0]);

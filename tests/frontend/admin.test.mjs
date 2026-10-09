@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Window } from "happy-dom";
 import * as admin from "../../frontend/dist/admin/index.js";
-import { fixture, CONTRACT_ID, SQUAD_ID, MEMBER_ID } from "../fixtures/admin-api.mjs";
+import { fixture, CONTRACT_ID, SQUAD_ID, MEMBER_ID, DIAGNOSTIC_ID } from "../fixtures/admin-api.mjs";
 
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve)); };
 function setup(context) {
@@ -16,7 +16,7 @@ function setup(context) {
     assert.equal(options.credentials, "same-origin"); signals.push(options.signal);
     if (options.method !== "GET") assert.equal(options.headers["X-CSRF-Token"], "synthetic-csrf");
     const result = api.respond(path, options.method, options.body ? JSON.parse(options.body) : undefined);
-    return Response.json(result.payload, { status: result.status });
+    return Response.json(result.payload, { status: result.status, headers: { "X-Corp-Request-ID": DIAGNOSTIC_ID } });
   });
   const view = admin.mountView("corporate-contracts", target, { currentLang: "en" });
   context.after(() => { admin.unmountView(view); window.happyDOM.abort(); });
@@ -316,4 +316,14 @@ test("public Minishop and Telegram identifiers find and confirm the same canonic
   await submit(); assert.equal(api.contracts[1].manager_user_id, 910011);
   await click("Back to contracts"); await click(api.contracts[1].name);
   assert.equal(target.querySelector('[name="manager"]').value, "ms_40000000000040008000000000000001");
+});
+
+test("lookup misses and API errors expose the response diagnostic ID", async (context) => {
+  const { api, target, click, fill } = setup(context); await flush(); await click("Create contract");
+  fill("manager", "missing@example.invalid"); await click("Find account");
+  assert.match(target.textContent, /Account not found/);
+  assert.ok(target.textContent.includes(`Diagnostic ID: ${DIAGNOSTIC_ID}`));
+  await click("Leave without a manager"); await click("Back to contracts");
+  api.failList = true; await click("Refresh");
+  assert.ok(target.querySelector('[role="alert"]').textContent.includes(DIAGNOSTIC_ID));
 });

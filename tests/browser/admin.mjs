@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import en from "../../locales/en.json" with { type: "json" };
 import ru from "../../locales/ru.json" with { type: "json" };
-import { fixture, CONTRACT_ID, SQUAD_ID, MINISHOP_ID, TELEGRAM_ID } from "../fixtures/admin-api.mjs";
+import { fixture, CONTRACT_ID, SQUAD_ID, MINISHOP_ID, TELEGRAM_ID, DIAGNOSTIC_ID } from "../fixtures/admin-api.mjs";
 
 export async function adminCases(browser) {
   let passed = 0;
@@ -15,7 +15,7 @@ export async function adminCases(browser) {
       const req = route.request(), method = req.method();
       if (method !== "GET") assert.equal(req.headers()["x-csrf-token"], "synthetic-browser-csrf");
       const result = api.respond(req.url(), method, method === "GET" ? undefined : req.postDataJSON());
-      await route.fulfill({ status: result.status, contentType: "application/json", body: JSON.stringify(result.payload) });
+      await route.fulfill({ status: result.status, contentType: "application/json", headers: { "X-Corp-Request-ID": DIAGNOSTIC_ID }, body: JSON.stringify(result.payload) });
     });
     const fit = async () => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     const snap = async (name) => { await fit(); await page.screenshot({ path: `.local/screenshots/admin-${name}-${language}-${width}-${theme}.png`, fullPage: true }); };
@@ -71,6 +71,9 @@ export async function adminCases(browser) {
     await button("clear_manager").click(); await button("save").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.contracts[1].manager_user_id, null);
     await button("back").click(); await button("new_contract").click(); await ready();
+    await page.locator('[name="manager"]').fill("missing@example.invalid"); await button("search").click(); await ready();
+    assert.ok((await page.locator(".minishop-corp").innerText()).includes(DIAGNOSTIC_ID));
+    await snap("lookup-diagnostic"); await button("clear_manager").click();
     await page.locator('[name="name"]').fill("Admin-only browser fixture"); await page.locator('[name="tariff"]').selectOption("corp");
     await write(button("save")); await ready(); assert.equal(api.contracts[2].manager_user_id, null);
     assert.deepEqual(errors, []); await fit(); await page.close(); passed++;

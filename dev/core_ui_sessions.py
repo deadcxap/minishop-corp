@@ -34,6 +34,19 @@ async def main() -> None:
                     )
                     if audience == "admin":
                         await grant_role(session, user_id, "admin", source="corp_core_ui_fixture")
+                        # Keep the signed-in account independent of Telegram: the
+                        # local stand has no bot to refresh its avatar on /me.
+                        manager_id = user_id + 2_000_000_000
+                        await user_dal.create_user(
+                            session,
+                            {
+                                "user_id": manager_id,
+                                "first_name": "Synthetic manager lookup fixture",
+                                "language_code": language,
+                                "telegram_id": user_id + 4_000_000_000,
+                            },
+                        )
+                        sessions[f"{audience}-{language}-{width}-manager"] = str(manager_id)
                     sessions[f"{audience}-{language}-{width}"] = create_webapp_session_token(
                         settings, user_id
                     )
