@@ -22,7 +22,7 @@
 | CORP-13 | `test_invitations.py`: замена, отзыв между предпросмотром и подтверждением, сохранение состава группы |
 | CORP-14 | `test_code_attempts.py`, `test_invitation_preview_api.py`: политика 1/15/60 минут, охлаждение, общие счётчики и конкурентные запросы |
 | CORP-15 | `test_acceptance.py`, `test_reconciliation.py`: применение новой версии всем текущим участникам, статус/ошибка, бывший участник не меняется |
-| CORP-16 | `test_sweeps.py`: один шестичасовой обход нескольких контрактов порциями более 100 аккаунтов, два worker, аренды и новые версии; `test_acceptance.py`: начисление дней через сервис наград Minishop |
+| CORP-16 | `test_sweeps.py`: один шестичасовой обход нескольких контрактов порциями более 100 аккаунтов, два worker, аренды и новые версии; `test_reconciliation_changes.py`: отсутствие записи при совпадении и исправление отклонений в Minishop и панели; `test_acceptance.py`: начисление дней через сервис наград Minishop |
 | CORP-17 | `test_reconciliation.py`, DOM/Chromium: истечение сохраняет членство, выход доступен, продление восстанавливает условия |
 | CORP-18 | `test_memberships.py`, `test_membership_boundaries.py`, `test_acceptance.py`: потерянный ответ, откат, идемпотентность и завершение в новом процессе |
 | CORP-19 | `tests/frontend/`, `tests/browser/smoke.mjs`: RU/EN, светлая/тёмная темы, 375/1280 px, клавиатура и подтверждения; `core-ui.mjs`: реальная оболочка Minishop |

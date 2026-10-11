@@ -167,7 +167,11 @@ class OperationWorker:
                 if isinstance(target, PeriodTarget):
                     if operation.kind == "join":
                         await self.access.validate_join(effects, operation.user_id)
-                    await self.access.assign_period(effects, operation.user_id, target.access())
+                        await self.access.assign_period(effects, operation.user_id, target.access())
+                    else:
+                        await self.access.reconcile_period(
+                            effects, operation.user_id, target.access()
+                        )
                 elif isinstance(target, TrialTarget):
                     await self.access.grant_trial(effects, operation.user_id, target.access())
                 else:

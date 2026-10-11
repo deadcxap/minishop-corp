@@ -8,8 +8,17 @@ rollback cannot undo an HTTP write: retry the SAME persisted target after revali
 from datetime import UTC, datetime, timedelta
 
 from bot.plugins.spec import PluginContext
+from bot.services.panel_tariff_tags import (
+    configured_tariff_tags,
+    panel_tariff_tag_for_key,
+    plan_panel_tariff_tag,
+)
 from bot.services.subscription_service import SubscriptionService
 from bot.services.subscription_service_impl.panel_identity import PanelUserCreateOptions
+from bot.services.subscription_service_impl.squad_overrides import (
+    detect_panel_manual_internal_squads,
+    normalize_panel_internal_squad_uuids,
+)
 from config.tariffs_config import Tariff, default_currency_key_for_settings
 from db.dal import subscription_dal, tariff_dal, user_dal
 from db.dal import user_panel_squad_override_dal as squad_dal
@@ -66,6 +75,124 @@ class AccessAdapter:
         await require_clear_billing(session, user_id)
         await self._require_supported_quotas(session, await self._current(session, user_id))
 
+    async def reconcile_period(
+        self, session: AsyncSession, user_id: int, target: PeriodAccess
+    ) -> AccessState:
+        """Read both sides under the account lock; only repair confirmed differences."""
+        user = await self._lock_user(session, user_id)
+        row = await self._current(session, user_id)
+        self._require_resolved_renewal(row)
+        await self._require_supported_quotas(session, row)
+        tariff = self._period_tariff(target.tariff_key)
+        if row is not None and await self._period_matches(session, user, row, tariff, target):
+            return AccessState.model_validate(row)
+        return await self.assign_period(session, user_id, target)
+
+    async def _period_matches(
+        self,
+        session: AsyncSession,
+        user: User,
+        row: Subscription,
+        tariff: Tariff,
+        target: PeriodAccess,
+    ) -> bool:
+        now = panel_time(datetime.now(UTC))
+        values = self._period_values(tariff, target, now)
+        limits = await self._period_limits(session, row, tariff, now)
+        values.update(limits)
+        if any(getattr(row, field) != value for field, value in values.items()):
+            return False
+        state = AccessState.model_validate(row)
+        if str(user.panel_user_uuid) != state.panel_user_uuid:
+            return False
+        active = await subscription_dal.get_active_subscriptions_for_user(session, state.user_id)
+        if any(
+            subscription.panel_user_uuid == state.panel_user_uuid
+            and subscription.panel_subscription_uuid != state.panel_subscription_uuid
+            for subscription in active
+        ):
+            return False
+        snapshot = await self.service._get_panel_user_for_entitlement_verification(
+            state.panel_user_uuid
+        )
+        if snapshot is None:
+            raise AccessError(AccessFailure.PANEL_UNCONFIRMED)
+        reference = snapshot.get("subscriptionUuid") or snapshot.get("shortUuid")
+        if reference != state.panel_subscription_uuid:
+            return False
+        # Keep exact contract dates even inside the host verifier's one-second tolerance.
+        try:
+            expiry = datetime.fromisoformat(str(snapshot.get("expireAt")).replace("Z", "+00:00"))
+            if panel_time(expiry) != target.ends_at:
+                return False
+        except ValueError:
+            return False
+        external = await squad_dal.get_active_external_override(
+            session, user_id=state.user_id, panel_user_uuid=state.panel_user_uuid
+        )
+        if target.external_squad_uuid is None:
+            if external is not None:
+                return False
+        elif (
+            external is None
+            or external.mode != "set"
+            or external.squad_uuid != target.external_squad_uuid
+        ):
+            return False
+        managed = self.service._panel_squads_for_tariff(tariff) or []
+        previous_squads = self._managed_squads(row)
+        overrides = await squad_dal.get_active_overrides(
+            session, user_id=state.user_id, panel_user_uuid=state.panel_user_uuid, kind="internal"
+        )
+        if any(
+            override.source == "panel" and override.squad_uuid in [*previous_squads, *managed]
+            for override in overrides
+        ):
+            return False
+        active_squads = (
+            self.service._panel_squads_for_tariff(
+                tariff, include_premium=not limits["premium_is_limited"]
+            )
+            or []
+        )
+        # Detect manual additions without persisting overrides or editing a matching profile.
+        manual = detect_panel_manual_internal_squads(
+            normalize_panel_internal_squad_uuids(snapshot), [*previous_squads, *managed]
+        )
+        fields = await self.service.build_effective_panel_squad_fields(
+            session,
+            user_id=state.user_id,
+            panel_user_uuid=state.panel_user_uuid,
+            managed_internal_squads=[*active_squads, *manual],
+            discover_panel_overrides=False,
+        )
+        # The contract, including inheritance/clearing, takes precedence over panel discovery.
+        fields["externalSquadUuid"] = (
+            target.external_squad_uuid or self.service.settings.parsed_user_external_squad_uuid
+        )
+        payload = self.service._build_panel_update_payload(
+            expire_at=target.ends_at,
+            status="ACTIVE" if state.is_active else "EXPIRED",
+            traffic_limit_bytes=limits["traffic_limit_bytes"],
+            traffic_limit_strategy=self.service._period_tariff_traffic_strategy(tariff),
+            hwid_device_limit=self.service._effective_hwid_limit(
+                self.service._base_hwid_limit_for_tariff(tariff), limits["extra_hwid_devices"]
+            ),
+            include_default_squads=False,
+        )
+        payload.update(fields)
+        # The service's tag planner can mutate User; use its pure native ownership policy here.
+        tariffs = self.service.settings.tariffs_config
+        tag = plan_panel_tariff_tag(
+            current_tag=snapshot.get("tag"),
+            managed_tag=user.managed_panel_tariff_tag,
+            desired_tag=panel_tariff_tag_for_key(tariff.key, tariffs),
+            known_tariff_tags=configured_tariff_tags(tariffs),
+        )
+        payload.update(tag.verification_payload)
+        payload["uuid"] = state.panel_user_uuid
+        return not self.service._panel_entitlement_mismatches(snapshot, payload)
+
     async def assign_period(
         self, session: AsyncSession, user_id: int, target: PeriodAccess
     ) -> AccessState:
@@ -120,30 +247,85 @@ class AccessAdapter:
                     if previous is not None
                     else now
                 ),
-                "end_date": target.ends_at,
-                "is_active": target.ends_at > now,
-                "status_from_panel": "ACTIVE" if target.ends_at > now else "EXPIRED",
-                "provider": "admin",
-                "auto_renew_enabled": False,
-                "tariff_key": tariff.key,
-                "tariff_binding_source": "admin",
-                "tariff_binding_note": SOURCE,
-                "gift_terms_snapshot": None,
-                "duration_months": 0,
-                "duration_days": None,
-                "period_semantics": None,
-                "tier_baseline_bytes": tariff.monthly_bytes,
-                "premium_baseline_bytes": tariff.premium_monthly_bytes,
-                "hwid_device_limit": base_devices,
-                "hwid_device_limit_is_override": False,
-                "is_throttled": False,
-                "skip_notifications": False,
-                "suppress_early_expiry_notifications": False,
-                "effective_monthly_price_rub": self.service._tariff_effective_monthly_price(
-                    tariff, default_currency_key_for_settings(self.service.settings)
-                ),
+                **self._period_values(tariff, target, now),
             },
         )
+        state = AccessState.model_validate(row)
+        limits = await self._period_limits(session, row, tariff, now)
+        await subscription_dal.update_subscription(session, state.subscription_id, limits)
+        await subscription_dal.deactivate_other_active_subscriptions(
+            session, state.panel_user_uuid, link.panel_subscription_uuid
+        )
+        # Native inheritance requires an explicit confirmed reset first. Without
+        # a default, simply removing the override omits the panel field and leaves
+        # the old external squad in place. Do not infer ownership from `source`:
+        # the host can rediscover even our own previous override as source=panel.
+        external = (
+            target.external_squad_uuid or self.service.settings.parsed_user_external_squad_uuid
+        )
+        await squad_dal.set_external_override(
+            session,
+            user_id=user_id,
+            panel_user_uuid=state.panel_user_uuid,
+            mode="set" if external else "cleared",
+            squad_uuid=external,
+            source=SOURCE,
+        )
+        await self._remove_obsolete_panel_overrides(session, state, [*previous_squads, *managed])
+        active_squads = (
+            self.service._panel_squads_for_tariff(
+                tariff, include_premium=not limits["premium_is_limited"]
+            )
+            or []
+        )
+        await self._synchronize(
+            session,
+            user,
+            row,
+            managed_squads=active_squads,
+            strategy=strategy,
+            devices=self.service._effective_hwid_limit(base_devices, limits["extra_hwid_devices"]),
+            is_trial=False,
+        )
+        remember_subscription_tariff_managed_squad_uuids(row, managed)
+        if target.external_squad_uuid is None:
+            await squad_dal.deactivate_external_override(
+                session, user_id=user_id, panel_user_uuid=state.panel_user_uuid
+            )
+        await session.flush()
+        return AccessState.model_validate(row)
+
+    def _period_values(
+        self, tariff: Tariff, target: PeriodAccess, now: datetime
+    ) -> dict[str, object]:
+        return {
+            "end_date": target.ends_at,
+            "is_active": target.ends_at > now,
+            "status_from_panel": "ACTIVE" if target.ends_at > now else "EXPIRED",
+            "provider": "admin",
+            "auto_renew_enabled": False,
+            "tariff_key": tariff.key,
+            "tariff_binding_source": "admin",
+            "tariff_binding_note": SOURCE,
+            "gift_terms_snapshot": None,
+            "duration_months": 0,
+            "duration_days": None,
+            "period_semantics": None,
+            "tier_baseline_bytes": tariff.monthly_bytes,
+            "premium_baseline_bytes": tariff.premium_monthly_bytes,
+            "hwid_device_limit": self.service._base_hwid_limit_for_tariff(tariff),
+            "hwid_device_limit_is_override": False,
+            "is_throttled": False,
+            "skip_notifications": False,
+            "suppress_early_expiry_notifications": False,
+            "effective_monthly_price_rub": self.service._tariff_effective_monthly_price(
+                tariff, default_currency_key_for_settings(self.service.settings)
+            ),
+        }
+
+    async def _period_limits(
+        self, session: AsyncSession, row: Subscription, tariff: Tariff, now: datetime
+    ) -> dict[str, int | bool]:
         state = AccessState.model_validate(row)
         extra_devices = await tariff_dal.sum_active_hwid_devices(
             session, subscription_id=state.subscription_id, at=now
@@ -170,53 +352,11 @@ class AccessAdapter:
             premium_used_bytes=state.premium_used_bytes,
             premium_unlimited_override=state.premium_unlimited_override,
         )
-        await subscription_dal.update_subscription(
-            session,
-            state.subscription_id,
-            {
-                "traffic_limit_bytes": limit,
-                "extra_hwid_devices": extra_devices,
-                "premium_is_limited": premium_limited,
-            },
-        )
-        await subscription_dal.deactivate_other_active_subscriptions(
-            session, state.panel_user_uuid, link.panel_subscription_uuid
-        )
-        # Native inheritance requires an explicit confirmed reset first. Without
-        # a default, simply removing the override omits the panel field and leaves
-        # the old external squad in place. Do not infer ownership from `source`:
-        # the host can rediscover even our own previous override as source=panel.
-        external = (
-            target.external_squad_uuid or self.service.settings.parsed_user_external_squad_uuid
-        )
-        await squad_dal.set_external_override(
-            session,
-            user_id=user_id,
-            panel_user_uuid=state.panel_user_uuid,
-            mode="set" if external else "cleared",
-            squad_uuid=external,
-            source=SOURCE,
-        )
-        await self._remove_obsolete_panel_overrides(session, state, [*previous_squads, *managed])
-        active_squads = (
-            self.service._panel_squads_for_tariff(tariff, include_premium=not premium_limited) or []
-        )
-        await self._synchronize(
-            session,
-            user,
-            row,
-            managed_squads=active_squads,
-            strategy=strategy,
-            devices=self.service._effective_hwid_limit(base_devices, extra_devices),
-            is_trial=False,
-        )
-        remember_subscription_tariff_managed_squad_uuids(row, managed)
-        if target.external_squad_uuid is None:
-            await squad_dal.deactivate_external_override(
-                session, user_id=user_id, panel_user_uuid=state.panel_user_uuid
-            )
-        await session.flush()
-        return AccessState.model_validate(row)
+        return {
+            "traffic_limit_bytes": limit,
+            "extra_hwid_devices": extra_devices,
+            "premium_is_limited": premium_limited,
+        }
 
     async def grant_trial(
         self, session: AsyncSession, user_id: int, target: TrialAccess
