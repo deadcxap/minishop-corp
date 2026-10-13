@@ -249,6 +249,9 @@ class Memberships:
             target = DisabledTarget(ends_at=window.ends_at)
         member.generation += 1
         member.state = "leaving"
+        # Minishop uses autoflush=False. Persist our locked transition before
+        # prepare_operation refreshes the member to verify its generation.
+        await session.flush()
         operation = await prepare_operation(
             session,
             OperationDraft(

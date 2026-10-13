@@ -56,7 +56,10 @@ async def client(host: Host) -> AsyncIterator[TestClient]:
     app = web.Application(middlewares=[_csrf_protection_middleware, admin_auth_middleware])
     app[SETTINGS] = host.settings
     app[SESSION_FACTORY] = async_sessionmaker(
-        bind=host.session.bind, expire_on_commit=False, join_transaction_mode="create_savepoint"
+        bind=host.session.bind,
+        expire_on_commit=False,
+        autoflush=False,
+        join_transaction_mode="create_savepoint",
     )
     app[SUBSCRIPTION_SERVICE] = host.service
     plugin.setup_web(PluginContext(host.settings), app, scope=WEB_SCOPE_WEBAPP)

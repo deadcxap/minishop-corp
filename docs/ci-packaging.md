@@ -43,7 +43,7 @@ Actions устанавливает только зависимости сбор�
 
 ```text
 minishop-plugin.json
-packages/minishop-corp-0.1.8.zip
+packages/minishop-corp-0.1.9.zip
 publisher.pub
 SHA256SUMS
 ```

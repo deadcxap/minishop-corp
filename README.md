@@ -18,7 +18,7 @@
 
 ## Совместимость
 
-Текущая версия — **0.1.8**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
+Текущая версия — **0.1.9**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
 frontend host API 1 и возможности Minishop `user_ui: 1`, `ui_composition: 1`.
 Установка проверяет эти возможности без привязки к конкретному commit ядра.
 Проверенная база — **Minishop 3.8.1** из [dev/minishop.json](dev/minishop.json);

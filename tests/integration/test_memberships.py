@@ -191,6 +191,43 @@ async def test_departure_retry_fixed_trial_and_rejoin_after_exclusion(host: Host
     )
 
 
+@pytest.mark.parametrize("scope", ["self", "admin", "manager"])
+async def test_manager_departure_with_native_session_settings_keeps_role(
+    client: TestClient, host: Host, scope: str
+) -> None:
+    contract_id = await create_api_contract(client, host)
+    draft = await invitation(host.session, contract_id=contract_id)
+    joined_result = await Memberships(ContractHost(host.service)).confirm(
+        host.session, MANAGER, draft
+    )
+    assert joined_result.operation is not None
+    assert await execute(host, joined_result.operation.id, due=True)
+    member_id = joined_result.operation.membership_id
+    managed = f"{USER_PATH}/managed-contracts/{contract_id}"
+    if scope == "self":
+        path = f"{USER_PATH}/memberships/{member_id}/leave"
+    else:
+        base = f"{ADMIN_PATH}/{contract_id}" if scope == "admin" else managed
+        path = f"{base}/members/{member_id}/exclude"
+    headers = authorization(host, USER_ID if scope == "admin" else MANAGER)
+    payload = {"request_id": str(uuid4())}
+    reply = await client.post(path, json=payload, headers=headers)
+    assert reply.status == 202, await reply.text()
+    operation_id = UUID((await reply.json())["operation"]["id"])
+    assert await execute(host, operation_id, due=True)
+    calls = list(host.panel.requests)
+    retry = await client.post(path, json=payload, headers=headers)
+    assert retry.status == 202
+    assert (await retry.json())["operation"]["id"] == str(operation_id)
+    assert host.panel.requests == calls
+    snapshot = await client.get(USER_PATH + "/membership", headers=authorization(host, MANAGER))
+    assert (await snapshot.json())["membership"] is None
+    assert (await client.get(managed, headers=authorization(host, MANAGER))).status == 200
+    assert (await client.get(ADMIN_PATH, headers=authorization(host, MANAGER))).status == 403
+    current = await host.session.get(Contract, contract_id, populate_existing=True)
+    assert current is not None and current.manager_user_id == MANAGER
+
+
 @pytest.mark.parametrize("disable_after_request", [False, True])
 async def test_disabled_trial_departure_finishes_without_grant(
     host: Host, disable_after_request: bool
