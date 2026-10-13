@@ -158,3 +158,27 @@ test("manager rotation recovers a lost response without minting a second code", 
   const calls = api.calls.filter((c) => c.path.endsWith("/rotate")); assert.deepEqual(calls[0].body, calls[1].body);
   await click('Refresh'); assert.equal(target.querySelector('[name="code"]').value, api.base.invitations[1].code);
 });
+
+test('manager creates both code types and edits an existing limit without changing the code or counters', async (t) => {
+  const { api, target, click } = setup(t, 'corporate-manager'); api.manager = true; await flush(); await click('Refresh');
+  await click(api.base.contracts[0].name); await click('Invitations');
+  const panel = () => target.querySelector('#corp-manager-panel-invitations');
+  const change = (name, value) => { const field = panel().querySelector(`[name="${name}"]`); field.value = value; field.dispatchEvent(new window.Event(field.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); };
+  const send = async (form) => { form.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); await flush(); };
+  api.loseNextWrite = true; await send(panel().querySelector('form')); await click('Retry the same request');
+  assert.equal(api.base.invitations.length, 1); assert.equal(api.base.invitations[0].kind, 'single');
+  change('kind', 'reusable'); change('use_limit', '12'); await send(panel().querySelector('form'));
+  change('use_limit', '15'); await send(panel().querySelector('form'));
+  assert.equal(api.base.invitations.length, 3);
+  const row = api.base.invitations[1]; row.used_count = 4; row.reserved_count = 2;
+  await click('Refresh', panel());
+  const card = () => panel().querySelector(`[data-invitation="${row.id}"]`);
+  await click('Edit limit', card()); assert.equal(card().querySelector('[name="edit_use_limit"]').min, '6');
+  const original = row.code; change('edit_use_limit', '9'); api.loseNextWrite = true;
+  await send(card().querySelector('form')); await click('Retry the same request');
+  assert.equal(row.use_limit, 9); assert.equal(row.version, 2); assert.equal(row.code, original);
+  assert.equal(row.used_count, 4); assert.equal(row.reserved_count, 2);
+  assert.ok(![...panel().querySelectorAll('button')].some(button => ['Revoke', 'Delete code', 'Add member'].includes(button.textContent)));
+  assert.ok(api.calls.every(call => call.path.startsWith('/managed-contracts')));
+  const writes = api.calls.filter(c => c.method === 'PUT'); assert.equal(writes.length, 2); assert.deepEqual(writes[0].body, writes[1].body);
+});

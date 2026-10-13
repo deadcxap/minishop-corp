@@ -17,6 +17,7 @@ from .invitations_types import (
     IssuedInvitation,
     PreviewInvitation,
     RotateInvitation,
+    UpdateInvitation,
 )
 
 
@@ -142,6 +143,16 @@ async def admin_delete(request: web.Request) -> web.Response:
 @boundary
 async def manager_collection(request: web.Request) -> web.Response:
     async with request_actor(request) as actor:
+        if request.method == "POST":
+            issued = await Invitations(ContractHost.from_request(request)).create(
+                actor.session,
+                actor.user_id,
+                UUID(request.match_info["contract_id"]),
+                await body(request, CreateInvitation),
+                manager=True,
+            )
+            await actor.session.commit()
+            return issued_response(request, issued)
         page = ContractPage.model_validate(dict(request.query))
         rows = await Invitations(ContractHost.from_request(request)).list(
             actor.session,
@@ -155,6 +166,24 @@ async def manager_collection(request: web.Request) -> web.Response:
         )
 
 
+@boundary
+async def update_invitation(request: web.Request) -> web.Response:
+    manager = not request.path.startswith("/api/admin/")
+    if not manager:
+        require_administrator(request)
+    async with request_actor(request) as actor:
+        result = await Invitations(ContractHost.from_request(request)).update(
+            actor.session,
+            actor.user_id,
+            UUID(request.match_info["contract_id"]),
+            UUID(request.match_info["invitation_id"]),
+            await body(request, UpdateInvitation),
+            manager=manager,
+        )
+        await actor.session.commit()
+        return response({"ok": True, "invitation": invitation_payload(request, result)})
+
+
 def setup_invitation_routes(app: web.Application) -> None:
     app.router.add_post("/api/plugins/minishop-corp/invitations/preview", customer_preview)
     admin = "/api/admin/minishop-corp/contracts/{contract_id}/invitations"
@@ -165,4 +194,7 @@ def setup_invitation_routes(app: web.Application) -> None:
     app.router.add_post(admin + "/{invitation_id}/revoke", admin_revoke)
     app.router.add_delete(admin + "/{invitation_id}", admin_delete)
     app.router.add_get(manager, manager_collection)
+    app.router.add_post(manager, manager_collection)
     app.router.add_post(manager + "/{invitation_id}/rotate", manager_rotate)
+    for prefix in (admin, manager):
+        app.router.add_put(prefix + "/{invitation_id}", update_invitation)

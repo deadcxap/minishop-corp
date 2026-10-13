@@ -184,8 +184,8 @@
   "wa_minishop_corp_disabled_result": "Corporate subscription ended without a trial. You can purchase a personal subscription.",
   "wa_minishop_corp_manager_title": "Subscription management",
   "wa_minishop_corp_manager_empty": "No corporate subscriptions are assigned to you.",
-  "wa_minishop_corp_manager_hint": "Manage members and reusable codes of your assigned subscriptions.",
-  "wa_minishop_corp_manager_no_code": "No reusable code has been created. Contact the store administrator.",
+  "wa_minishop_corp_manager_hint": "Manage members and invitation codes of your assigned subscriptions.",
+  "wa_minishop_corp_manager_no_code": "No invitations yet. Create a single-use or reusable code.",
   "wa_minishop_corp_manager_revoked": "Access to this corporate subscription has been revoked. Refresh your subscriptions.",
   "admin_minishop_corp_saved_expiry": "Saved exact expiry (until you change the date)",
   "admin_minishop_corp_add_day": "+day",
@@ -225,5 +225,9 @@
   "admin_minishop_corp_manager_revoked": "Manager role revoked.",
   "admin_minishop_corp_add_member": "Add member",
   "admin_minishop_corp_add_member_hint": "The user’s current plan and expiry will be replaced with the corporate subscription terms. Remaining personal subscription time will not be retained. Auto-renewal must be disabled and personal payments completed or cancelled. The manager role will stay unchanged.",
-  "admin_minishop_corp_member_queued": "Member addition accepted. Access will be available once the operation completes."
+  "admin_minishop_corp_member_queued": "Member addition accepted. Access will be available once the operation completes.",
+  "admin_minishop_corp_edit_limit": "Edit limit",
+  "admin_minishop_corp_edit_limit_hint": "The code and counters stay unchanged. The limit cannot be below used and reserved activations combined.",
+  "admin_minishop_corp_invitation_updated": "Invitation limit saved.",
+  "minishop_corp_invitation_limit_too_low": "The limit cannot be below used and reserved activations combined. Refresh the list."
 }

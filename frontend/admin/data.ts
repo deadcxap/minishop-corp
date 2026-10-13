@@ -16,7 +16,7 @@ export interface Account { user_id: number; first_name: string | null; last_name
 export interface Squad { uuid: string; name: string }
 export interface Invitation {
   id: string; kind: "single" | "reusable"; used_count: number; reserved_count: number;
-  use_limit: number; revoked_at: string | null; created_at: string;
+  use_limit: number; version: number; revoked_at: string | null; created_at: string;
   code: string | null; link: string | null;
 }
 export interface Issued { invitation: Invitation; code: string | null; link: string | null }
@@ -57,7 +57,7 @@ export function squad(value: unknown): Squad {
 export function invitation(value: unknown): Invitation {
   const v = object(value);
   return { id: string(v.id), kind: choice(v.kind, ["single", "reusable"]), used_count: number(v.used_count),
-    reserved_count: number(v.reserved_count), use_limit: number(v.use_limit),
+    reserved_count: number(v.reserved_count), use_limit: number(v.use_limit), version: number(v.version),
     revoked_at: nullable(v.revoked_at, string), created_at: string(v.created_at),
     code: nullable(v.code, string), link: nullable(v.link, string) };
 }

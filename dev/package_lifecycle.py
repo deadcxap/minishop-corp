@@ -236,7 +236,7 @@ async def main() -> None:
                             "SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'"
                         )
                     )
-                ) == 9
+                ) == 10
                 return rows
 
         before = await snapshot()
@@ -325,7 +325,7 @@ async def main() -> None:
             codes = (await response.json())["invitations"]
             restored = next(row for row in codes if row["id"] == saved_invite_id)
             assert restored["code"] == saved_code
-        print("PASS: reinstall reuses all nine migrations without data loss")
+        print("PASS: reinstall reuses all ten migrations without data loss")
         print("PASS: authorized invitation list retains the same visible code after reinstall")
 
 

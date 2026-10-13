@@ -108,7 +108,7 @@ async def test_create_codes_metadata_and_retries(
         assert denied.status == 404 and secret.get_secret_value() not in await denied.text()
     managed = await client.get(manager_path, headers=authorization(host, MANAGER))
     managed_rows = (await managed.json())["invitations"]
-    assert managed_rows == ([] if kind == "single" else rows)
+    assert managed_rows == rows
     events = list(
         await host.session.scalars(
             select(AuditEvent.details).where(AuditEvent.contract_id == contract_id)

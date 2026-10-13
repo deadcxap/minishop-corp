@@ -1,51 +1,13 @@
-import { ApiError, requestId } from "../shared/api";
+import { ApiError } from "../shared/api";
 import type { CustomerProps } from "../shared/host";
 import { customerText, type CustomerKey } from "../shared/i18n";
 import { MembersPanel } from "../shared/member-panel";
-import { Panel, button, confirm, date, el } from "../shared/ui";
-import { invitationCode } from "../shared/invitation-code";
-import { invitation, issued, type Invitation } from "../admin/data";
+import { Panel, button, date, el } from "../shared/ui";
+import { InvitationsPanel } from "../shared/invitations-panel";
 import { CustomerApi } from "./api";
 import { list, summary, type Summary } from "./data";
 
 const denied = (error: unknown): boolean => error instanceof ApiError && [401, 403, 404].includes(error.status);
-
-class ManagerCode extends Panel {
-  row: Invitation | null = null; loaded = false;
-  constructor(language: string, private current: () => Summary, host: () => CustomerProps["host"]) {
-    super(language, (signal) => new CustomerApi(host, signal)); void this.run(() => this.load());
-  }
-  c(key: CustomerKey): string { return customerText(this.language, key); }
-  get path(): string { return `/managed-contracts/${this.current().id}/invitations`; }
-  async load(): Promise<void> {
-    this.row = list((await this.api.request(this.path)).invitations, invitation)[0] ?? null;
-    this.loaded = true;
-  }
-  override failed(error: unknown): void { if (denied(error)) this.row = null; }
-  async rotate(): Promise<void> {
-    const row = this.row;
-    if (!row || this.busy || this.retry) return;
-    if (!await confirm(this.root, this.t("confirm_rotate"), `${this.t("code_change_hint")} ${this.t("rotation_hint")}`, this.language, this.controller.signal)) return;
-    const payload = { id: requestId() };
-    await this.run(async () => {
-      const result = issued(await this.api.request(`${this.path}/${row.id}/rotate`, "POST", payload));
-      this.row = result.invitation;
-    }, true);
-  }
-  render(): void {
-    this.paint((body) => {
-      body.append(button(this.t("refresh"), () => { void this.run(() => this.load()); }));
-      if (!this.loaded) { body.append(el("p", this.c("loading"))); return; }
-      if (!this.row) { body.append(el("p", this.c("manager_no_code"), "corp-empty")); return; }
-      const row = this.row, expired = Date.parse(this.current().ends_at) <= Date.now();
-      body.append(el("h3", this.t("reusable")), el("p", `${this.t("used")}: ${row.used_count} / ${row.use_limit} · ${this.t("reserved")}: ${row.reserved_count}`));
-      if (expired) body.append(el("p", this.t("expired_codes"), "corp-notice"));
-      else body.append(button(this.t("rotate"), () => { void this.rotate(); }, "corp-primary"));
-      body.append(invitationCode(this, row));
-    });
-  }
-  override destroy(): void { this.row = null; super.destroy(); }
-}
 
 type Tab = "members" | "invitations";
 export class ManagerView extends Panel {
@@ -74,7 +36,7 @@ export class ManagerView extends Panel {
     const current = (): Summary => { if (!this.current) throw new Error("missing_contract"); return this.current; };
     const host = (): CustomerProps["host"] => this.props.host;
     const panel = tab === "members" ? new MembersPanel(this.language, current, "manager", (signal) => new CustomerApi(host, signal))
-      : new ManagerCode(this.language, current, host);
+      : new InvitationsPanel(this.language, current, "manager", (signal) => new CustomerApi(host, signal));
     panel.changed = () => {
       if (!this.alive) return;
       if (denied(panel.error)) { this.failed(panel.error); this.error = new ApiError("wa_minishop_corp_manager_revoked", 400); }

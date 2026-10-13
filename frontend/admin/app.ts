@@ -4,7 +4,7 @@ import { Panel, button, confirm, date, el, person } from "../shared/ui";
 import type { CorporateMember } from "../shared/members";
 import { contract, list, type Contract } from "./data";
 import { Editor } from "./editor";
-import { InvitationsPanel } from "./invitations";
+import { InvitationsPanel } from "../shared/invitations-panel";
 import { AdminMembersPanel } from "./members";
 import { SynchronizationPanel } from "./synchronization";
 import { DraftStore, type EditorDraft, type Tab } from "./draft";

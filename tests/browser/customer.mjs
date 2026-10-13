@@ -29,7 +29,7 @@ export async function customerCases(browser) {
       await page.screenshot({ path: `.local/screenshots/${name}-${language}-${width}-${theme}.png`, fullPage: true });
     };
     const write = async (control) => {
-      const done = page.waitForResponse((r) => r.url().includes("/api/plugins/minishop-corp/") && r.request().method() === "POST");
+      const done = page.waitForResponse((r) => r.url().includes("/api/plugins/minishop-corp/") && r.request().method() !== "GET");
       await control.click(); await done; await ready();
     };
     const base = `${process.env.CORP_PREVIEW_URL}/?${new URLSearchParams({ audience: "customer", language, theme, view: "corporate-card" })}`;
@@ -71,6 +71,20 @@ export async function customerCases(browser) {
     await page.getByRole("tab", { name: a("members"), exact: true }).focus(); await page.keyboard.press("ArrowRight");
     await button(a("rotate")).waitFor(); await button(a("rotate")).click(); await write(button(a("confirm"), page.getByRole("dialog")));
     await page.locator('[name="code"]').waitFor(); assert.equal(api.base.invitations[1].use_limit, 12); await snap("manager-code");
+    const invitations = page.locator('#corp-manager-panel-invitations');
+    await page.locator('[name="kind"]').selectOption("single");
+    await write(button(a("generate"), invitations)); await ready();
+    await page.locator('[name="kind"]').selectOption("reusable");
+    await page.locator('[name="use_limit"]').fill("7");
+    await write(button(a("generate"), invitations)); await ready();
+    assert.equal(api.base.invitations.length, 4);
+    const edited = api.base.invitations[1], codeBefore = edited.code;
+    const card = page.locator(`[data-invitation="${edited.id}"]`);
+    await button(a("edit_limit"), card).click();
+    await page.locator('[name="edit_use_limit"]').fill("20");
+    await write(button(a("save"), card)); await ready();
+    assert.equal(edited.use_limit, 20); assert.equal(edited.code, codeBefore);
+    await snap("manager-invitations");
     api.manager = false; await button(a("refresh"), page.locator('[role="tabpanel"]:visible')).click();
     await page.getByText(t("manager_revoked"), { exact: true }).waitFor();
     assert.equal(await page.locator('[name="code"]').count(), 0); assert.deepEqual(errors, []);

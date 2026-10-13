@@ -44,6 +44,7 @@ def test_installed_entry_point_and_worker_hooks(context: PluginContext) -> None:
         "minishop-corp.0007_optional_manager",
         "minishop-corp.0008_invitation_previews",
         "minishop-corp.0009_visible_invitation_codes",
+        "minishop-corp.0010_multiple_invitation_codes",
     ]
 
 
@@ -95,6 +96,7 @@ def test_routes_only_in_webapp(context: PluginContext) -> None:
         "/api/admin/minishop-corp/contracts/{contract_id}/invitations/{invitation_id}",
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}/invitations",
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}/invitations/{invitation_id}/rotate",
+        "/api/plugins/minishop-corp/managed-contracts/{contract_id}/invitations/{invitation_id}",
     }
 
 

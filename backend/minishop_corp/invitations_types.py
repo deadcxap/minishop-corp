@@ -9,7 +9,7 @@ from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, SecretStr, model_validator
 
-from .contracts_types import ContractError, ContractSummary
+from .contracts_types import ContractError, ContractSummary, Version
 
 UseLimit = Annotated[int, Field(strict=True, gt=0, le=2**31 - 1)]
 
@@ -32,12 +32,19 @@ class RotateInvitation(BaseModel):
     id: UUID
 
 
+class UpdateInvitation(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    expected_version: Version
+    use_limit: UseLimit
+
+
 class InvitationInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True, frozen=True)
     id: UUID
     contract_id: UUID
     kind: Literal["single", "reusable"]
     use_limit: int
+    version: int
     used_count: int
     reserved_count: int
     revoked_at: datetime | None

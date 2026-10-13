@@ -16,7 +16,7 @@ export function customerFixture() {
     if (path.startsWith("/managed-contracts")) {
       if (path === "/managed-contracts") return ok({ contracts: state.manager ? [contract()] : [] });
       if (!state.manager) return fail("minishop_corp_contract_missing", 404);
-      if (path.endsWith("/invitations") && method === "GET") return ok({ invitations: base.invitations.filter((v) => v.kind === "reusable" && !v.revoked_at) });
+      if (path.endsWith("/invitations") && method === "GET") return ok({ invitations: base.invitations.filter((v) => !v.revoked_at && (!parsed.searchParams.get("after") || v.id > parsed.searchParams.get("after"))).sort((a, b) => a.id.localeCompare(b.id)).slice(0, 25) });
       return base.respond(parsed.href.replace("/api/plugins/minishop-corp/managed-contracts", "/api/admin/minishop-corp/contracts").replace("/managed-contracts", "/api/admin/minishop-corp/contracts"), method, body);
     }
     if (path === "/membership" && method === "GET") {
@@ -56,6 +56,6 @@ export function customerFixture() {
     else { op.departure = { kind: state.trial ? "trial" : "disabled", ends_at: "2030-11-01T00:00:00Z" }; state.last_departure = op; state.membership = null; }
   };
   state.seedCode = () => base.invitations.push({ id: "40000000-0000-4000-8000-000000000001", contract_id: CONTRACT_ID, kind: "reusable", use_limit: 12,
-    used_count: 4, reserved_count: 0, revoked_at: null, created_at: "2029-01-01T00:00:00Z", code: CODE, link: `https://example.invalid/#corp_code=${CODE}` });
+    version: 1, used_count: 4, reserved_count: 0, revoked_at: null, created_at: "2029-01-01T00:00:00Z", code: CODE, link: `https://example.invalid/#corp_code=${CODE}` });
   return state;
 }

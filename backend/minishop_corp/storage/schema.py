@@ -56,6 +56,7 @@ class Invitation(Base):
     code_digest: Mapped[str] = mapped_column(String(64))
     code_value: Mapped[str | None] = mapped_column(String(37))
     use_limit: Mapped[int] = mapped_column(Integer)
+    version: Mapped[int] = mapped_column(Integer, default=1)
     used_count: Mapped[int] = mapped_column(Integer, default=0)
     reserved_count: Mapped[int] = mapped_column(Integer, default=0)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

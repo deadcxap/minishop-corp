@@ -1,14 +1,17 @@
-import { translate } from "../shared/i18n";
-import { ApiError, requestId } from "../shared/api";
-import { Panel, button, confirm, date, el, field, input, select } from "../shared/ui";
-import { invitationCode } from "../shared/invitation-code";
-import { invitation, issued, list, type Contract, type Invitation } from "./data";
+import { translate } from "./i18n";
+import { ApiError, requestId, type ApiClient } from "./api";
+import { Panel, button, confirm, date, el, field, input, select } from "./ui";
+import { invitationCode } from "./invitation-code";
+import { invitation, issued, list, type Invitation } from "../admin/data";
 
 export class InvitationsPanel extends Panel {
   rows: Invitation[] = []; after: string | null = null; loaded = false;
   kind = "single"; limit = "10";
-  constructor(language: string, private current: () => Contract) { super(language); void this.run(() => this.load()); }
-  get path(): string { return `/contracts/${this.current().id}/invitations`; }
+  editing: string | null = null; editLimit = "";
+  constructor(language: string, private current: () => { id: string; ends_at: string }, private scope: "admin" | "manager" = "admin", client?: (signal: AbortSignal) => ApiClient) {
+    super(language, client); void this.run(() => this.load());
+  }
+  get path(): string { return `/${this.scope === "admin" ? "contracts" : "managed-contracts"}/${this.current().id}/invitations`; }
   async load(after?: string): Promise<void> {
     const page = list((await this.api.request(`${this.path}?limit=25${after ? `&after=${after}` : ""}`)).invitations, invitation);
     this.rows = after ? [...new Map([...this.rows, ...page].map((row) => [row.id, row])).values()] : page;
@@ -23,6 +26,7 @@ export class InvitationsPanel extends Panel {
       const result = issued(await this.api.request(path, "POST", payload));
       this.rows = this.rows.filter((value) => value.id !== result.invitation.id);
       if (row) this.rows = this.rows.map((value) => value.id === row.id ? { ...value, revoked_at: result.invitation.created_at } : value);
+      if (this.scope === "manager") this.rows = this.rows.filter((value) => !value.revoked_at);
       this.rows.unshift(result.invitation); this.loaded = true;
     }, true);
   }
@@ -32,6 +36,14 @@ export class InvitationsPanel extends Panel {
       const result = invitation((await this.api.request(`${this.path}/${row.id}/revoke`, "POST", {})).invitation);
       this.rows = this.rows.map((value) => value.id === result.id ? result : value);
       this.notice = "admin_minishop_corp_revoked_notice";
+    }, true);
+  }
+  async saveLimit(row: Invitation): Promise<void> {
+    const payload = { expected_version: row.version, use_limit: Number(this.editLimit) };
+    await this.run(async () => {
+      const saved = invitation((await this.api.request(`${this.path}/${row.id}`, "PUT", payload)).invitation);
+      this.rows = this.rows.map((value) => value.id === saved.id ? saved : value); this.editing = null;
+      this.notice = "admin_minishop_corp_invitation_updated";
     }, true);
   }
   async remove(row: Invitation): Promise<void> {
@@ -76,13 +88,30 @@ export class InvitationsPanel extends Panel {
         card.append(invitationCode(this, row));
         const tools = el("div", undefined, "corp-actions");
         if (!row.revoked_at) {
-          if (row.kind === "reusable" && !expired) tools.append(button(this.t("rotate"), () => { void this.issue(row); }));
-          tools.append(button(this.t("revoke"), () => { void this.revoke(row); }, "corp-danger"));
+          if (row.kind === "reusable" && !expired) {
+            tools.append(button(this.t("rotate"), () => { void this.issue(row); }), button(this.t("edit_limit"), () => {
+              this.editing = row.id; this.editLimit = String(row.use_limit); this.render();
+            }));
+          }
+          if (this.scope === "admin") tools.append(button(this.t("revoke"), () => { void this.revoke(row); }, "corp-danger"));
         }
-        const remove = button(this.t("delete_invitation"), () => { void this.remove(row); }, "corp-danger");
-        remove.disabled = row.reserved_count > 0;
-        if (remove.disabled) card.append(el("small", translate(this.language, "minishop_corp_invitation_busy")));
-        tools.append(remove); card.append(tools);
+        if (this.scope === "admin") {
+          const remove = button(this.t("delete_invitation"), () => { void this.remove(row); }, "corp-danger");
+          remove.disabled = row.reserved_count > 0;
+          if (remove.disabled) card.append(el("small", translate(this.language, "minishop_corp_invitation_busy")));
+          tools.append(remove);
+        }
+        card.append(tools);
+        if (this.editing === row.id && !row.revoked_at && !expired) {
+          const form = el("form", undefined, "corp-inline-form");
+          const limit = input("edit_use_limit", this.editLimit, (value) => { this.editLimit = value; }, "number");
+          limit.min = String(Math.max(1, row.used_count + row.reserved_count)); limit.max = "2147483647"; limit.step = "1"; limit.required = true;
+          form.append(field(this.t("use_limit"), limit, this.t("edit_limit_hint")));
+          const save = el("button", this.t("save"), "corp-button corp-primary"); save.type = "submit"; form.append(save,
+            button(this.t("cancel"), () => { this.editing = null; this.render(); }));
+          form.addEventListener("submit", (event) => { event.preventDefault(); if (form.reportValidity()) void this.saveLimit(row); });
+          card.append(form);
+        }
         rows.append(card);
       }
       body.append(rows);

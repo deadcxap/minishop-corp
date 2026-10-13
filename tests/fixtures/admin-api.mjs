@@ -71,6 +71,13 @@ export function fixture() {
     if (parts[2] === "invitations") {
       if (method === "GET") return ok({ invitations: state.invitations.filter((row) => !url.searchParams.get("after") || row.id > url.searchParams.get("after")).slice(0, 25) });
       const old = state.invitations.find((row) => row.id === parts[3]);
+      if (method === "PUT") {
+        if (!old) return fail("minishop_corp_invitation_missing", 404);
+        if (old.use_limit === body.use_limit && [body.expected_version, body.expected_version + 1].includes(old.version)) return ok({ invitation: old });
+        if (old.version !== body.expected_version || old.revoked_at) return fail("minishop_corp_request_conflict", 409);
+        if (body.use_limit < old.used_count + old.reserved_count) return fail("minishop_corp_invitation_limit_too_low", 409);
+        old.use_limit = body.use_limit; old.version++; return ok({ invitation: old });
+      }
       if (method === "DELETE") {
         if (old?.reserved_count) return fail("minishop_corp_invitation_busy", 409);
         state.invitations = state.invitations.filter((row) => row.id !== parts[3]); return ok({});
@@ -79,9 +86,8 @@ export function fixture() {
       const existing = state.invitations.find((row) => row.id === body.id);
       if (existing) return ok({ invitation: existing, code: existing.code, link: existing.link, created: false, notice: "minishop_corp_code_saved" });
       if (old) old.revoked_at = now;
-      else if (body.kind === "reusable" && state.invitations.some((row) => row.kind === "reusable" && !row.revoked_at)) return fail("minishop_corp_invitation_exists", 409);
       const row = { id: body.id, contract_id: current.id, kind: old?.kind ?? body.kind, use_limit: old?.use_limit ?? body.use_limit,
-        used_count: 0, reserved_count: 0, revoked_at: null, created_at: now, replaces_id: old?.id ?? null,
+        version: 1, used_count: 0, reserved_count: 0, revoked_at: null, created_at: now, replaces_id: old?.id ?? null,
         code: `CORP-${body.id.replaceAll("-", "").toUpperCase()}`, link: `https://example.invalid/#corp_code=CORP-${body.id.replaceAll("-", "").toUpperCase()}` };
       state.invitations.push(row);
       return ok({ invitation: row, code: row.code, link: row.link, created: true, notice: "minishop_corp_code_saved" });
