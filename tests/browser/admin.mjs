@@ -52,8 +52,16 @@ export async function adminCases(browser) {
     await button("make_manager").first().click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.contracts[0].manager_user_id, api.members[0].profile.user_id);
     await snap("member-manager");
+    await button("revoke_manager").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
+    assert.equal(api.contracts[0].manager_user_id, null); assert.equal(api.members[0].state, "active");
+    await page.locator('[name="member_query"]').fill(MINISHOP_ID);
+    await button("search", page.locator('#corp-panel-members')).click(); await ready();
+    await button("add_member").click(); await snap("add-member-confirmation");
+    await write(button("confirm", page.getByRole("dialog"))); await ready();
+    assert.equal(api.members.length, 3); assert.equal(api.members[2].state, "pending");
+    await snap("member-added");
     await button("exclude").first().click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
-    assert.equal(api.members.length, 2); assert.equal(api.members[0].state, "leaving");
+    assert.equal(api.members.length, 3); assert.equal(api.members[0].state, "leaving");
     await tab("invitations").click(); await ready();
     await write(button("generate")); await ready(); assert.equal(api.invitations[0].kind, "single");
     await button("revoke").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();

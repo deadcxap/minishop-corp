@@ -3,7 +3,7 @@
 База проверок — Minishop 3.8.1 из [закреплённой конфигурации](../dev/minishop.json).
 Тесты работают с синтетическими аккаунтами и локальной БД.
 
-## Матрица CORP-01–CORP-20
+## Матрица CORP-01–CORP-23
 
 | Критерий | Основное доказательство |
 | --- | --- |
@@ -27,6 +27,8 @@
 | CORP-18 | `test_memberships.py`, `test_membership_boundaries.py`, `test_acceptance.py`: потерянный ответ, откат, идемпотентность и завершение в новом процессе |
 | CORP-19 | `tests/frontend/`, `tests/browser/smoke.mjs`: RU/EN, светлая/тёмная темы, 375/1280 px, клавиатура и подтверждения; `core-ui.mjs`: реальная оболочка Minishop |
 | CORP-20 | `scripts/check.sh`, `test_packages.py`, `scripts/package-check.sh`: импорт индекса штатным Minishop, подпись/хеши, неизменность версии, публикация в Git, обновление, перезапуски и данные |
+| CORP-21 | `test_manual_members.py`: ручное добавление, проверки платежей, новая версия условий, конкурентные запросы, откат и безопасные повторы; DOM/Chromium: поиск и подтверждение аккаунта |
+| CORP-23 | `test_member_manager.py`, `test_memberships.py`: отзыв роли без исключения и выход управляющего без утраты роли, API использует штатный `autoflush=False`; DOM/Chromium: кнопка отзыва |
 
 Все упомянутые тесты находятся в [tests](../tests/).
 Команды и выбор проверок — в [CONTRIBUTING.md](../CONTRIBUTING.md) и

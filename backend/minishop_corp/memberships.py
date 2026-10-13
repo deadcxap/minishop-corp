@@ -19,6 +19,7 @@ from .integration.access_types import AccessError, TrialAccess
 from .integration.contracts import ContractHost
 from .invitation_lookup import InvitationLookup
 from .membership_types import (
+    AddMembership,
     ConfirmationResult,
     ConfirmMembership,
     DepartMembership,
@@ -118,6 +119,7 @@ class Memberships:
                 )
             if (
                 target is None
+                or target.enrollment != "invitation"
                 or member is None
                 or str(accepted_invitation) != str(draft.offer.invitation_id)
                 or existing.contract_id != draft.offer.contract_id
@@ -190,6 +192,77 @@ class Memberships:
             await session.delete(preview)
         await session.flush()
         return ConfirmationResult(202, operation=operation_info(operation))
+
+    async def add(
+        self,
+        session: AsyncSession,
+        actor: int,
+        contract_id: UUID,
+        draft: AddMembership,
+    ) -> OperationInfo:
+        """An administrator accepts current terms on behalf of an existing account."""
+        await self.host.require_admin(session, actor)
+        await self.host.lock_accounts(session, [actor, draft.user_id])
+        contract = await Contracts._get(session, contract_id, lock=True)
+        previous = await self._request(session, actor, draft.request_id)
+        if previous is not None:
+            target = (
+                PeriodTarget.model_validate(previous.target) if previous.kind == "join" else None
+            )
+            if (
+                previous.contract_id != contract_id
+                or previous.user_id != draft.user_id
+                or target is None
+                or target.enrollment != "admin"
+                or target.accepted_version != draft.expected_version
+            ):
+                raise ContractError("minishop_corp_request_conflict", 409)
+            member = await session.get(Membership, previous.membership_id)
+            if member is None or member.state == "deleted":
+                raise ContractError("minishop_corp_membership_missing", 404)
+            return operation_info(previous)
+        if contract.version != draft.expected_version:
+            raise ContractError("minishop_corp_version_conflict", 409)
+        if contract.ends_at <= datetime.now(UTC):
+            raise ContractError("minishop_corp_contract_expired", 409)
+        if await session.scalar(
+            select(Membership.id).where(Membership.current_user_id == draft.user_id)
+        ):
+            raise ContractError("minishop_corp_already_member", 409)
+        try:
+            await self.access.validate_join(session, draft.user_id)
+        except AccessError as exc:
+            raise ContractError(exc.code.value, 409) from exc
+        member = Membership(
+            contract_id=contract.id,
+            user_id=draft.user_id,
+            current_user_id=draft.user_id,
+        )
+        session.add(member)
+        await session.flush()
+        operation = await prepare_operation(
+            session,
+            OperationDraft(
+                contract_id=contract.id,
+                contract_version=contract.version,
+                membership_id=member.id,
+                membership_generation=member.generation,
+                user_id=draft.user_id,
+                actor_user_id=actor,
+                request_id=draft.request_id,
+                kind="join",
+                target=PeriodTarget(
+                    tariff_key=contract.tariff_key,
+                    ends_at=contract.ends_at,
+                    external_squad_uuid=contract.external_squad_uuid,
+                    accepted_version=contract.version,
+                    enrollment="admin",
+                ),
+            ),
+        )
+        self._audit(session, operation, "membership_admin_join_requested")
+        await session.flush()
+        return operation_info(operation)
 
     async def depart(
         self,

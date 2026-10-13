@@ -20,6 +20,7 @@ class PeriodTarget(BaseModel):
     external_squad_uuid: UUID | None = None
     # Preserve the offer accepted by the request when queued terms are refreshed.
     accepted_version: Version | None = None
+    enrollment: Literal["invitation", "admin"] = "invitation"
 
     def access(self) -> PeriodAccess:
         return PeriodAccess(

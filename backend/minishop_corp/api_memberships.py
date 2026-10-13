@@ -8,7 +8,7 @@ from aiohttp import web
 from .api_contracts import body, boundary, response
 from .integration.auth import require_administrator
 from .integration.contracts import ContractHost, request_actor
-from .membership_types import ConfirmMembership, DepartMembership
+from .membership_types import AddMembership, ConfirmMembership, DepartMembership
 from .memberships import Memberships
 
 
@@ -92,9 +92,24 @@ def setup_membership_routes(app: web.Application) -> None:
     app.router.add_post(customer + "/membership/confirm", confirm)
     app.router.add_post(customer + "/memberships/{membership_id}/leave", depart)
     app.router.add_get(customer + "/operations/{operation_id}", operation)
+    app.router.add_post("/api/admin/minishop-corp/contracts/{contract_id}/members", add)
     for prefix in (
         "/api/admin/minishop-corp/contracts/{contract_id}",
         customer + "/managed-contracts/{contract_id}",
     ):
         app.router.add_post(prefix + "/members/{membership_id}/exclude", depart)
         app.router.add_get(prefix + "/operations/{operation_id}", operation)
+
+
+@boundary
+async def add(request: web.Request) -> web.Response:
+    require_administrator(request)
+    async with request_actor(request) as actor:
+        result = await Memberships(ContractHost.from_request(request)).add(
+            actor.session,
+            actor.user_id,
+            UUID(request.match_info["contract_id"]),
+            await body(request, AddMembership),
+        )
+        await actor.session.commit()
+        return response({"ok": True, "operation": result.model_dump(mode="json")}, status=202)

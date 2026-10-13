@@ -119,6 +119,8 @@ class Contracts:
         contract_id: UUID,
         membership_id: UUID,
         draft: AssignManager,
+        *,
+        revoke: bool = False,
     ) -> ContractDetails:
         await self.host.require_admin(session, actor)
         identity = await session.get(Membership, membership_id)
@@ -128,19 +130,29 @@ class Contracts:
         await self.host.lock_accounts(session, [actor, identity.user_id])
         row = await self._get(session, contract_id, lock=True)
         await session.refresh(identity, with_for_update=True)
-        if identity.current_user_id != identity.user_id or identity.state != "active":
+        if identity.current_user_id != identity.user_id or (
+            not revoke and identity.state != "active"
+        ):
             raise ContractError("minishop_corp_membership_missing", 404)
-        if row.manager_user_id == identity.user_id and row.version in (
+        manager = None if revoke else identity.user_id
+        if row.manager_user_id == manager and row.version in (
             draft.expected_version,
             draft.expected_version + 1,
         ):
             return await self._details(session, row)
         if row.version != draft.expected_version:
             raise ContractError("minishop_corp_version_conflict", 409)
-        row.manager_user_id = identity.user_id
+        if revoke and row.manager_user_id != identity.user_id:
+            raise ContractError("minishop_corp_version_conflict", 409)
+        row.manager_user_id = manager
         row.version += 1
         row.updated_at = datetime.now(UTC)
-        await self._record(session, row, actor, "manager_assigned_from_members")
+        await self._record(
+            session,
+            row,
+            actor,
+            "manager_revoked_from_members" if revoke else "manager_assigned_from_members",
+        )
         return await self._details(session, row)
 
     async def admin_list(

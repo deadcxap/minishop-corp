@@ -56,6 +56,10 @@ def setup_member_routes(app: web.Application) -> None:
         "/api/admin/minishop-corp/contracts/{contract_id}/members/{membership_id}/manager",
         assign_manager,
     )
+    app.router.add_delete(
+        "/api/admin/minishop-corp/contracts/{contract_id}/members/{membership_id}/manager",
+        assign_manager,
+    )
     for prefix in (
         "/api/admin/minishop-corp/contracts/{contract_id}",
         "/api/plugins/minishop-corp/managed-contracts/{contract_id}",
@@ -74,6 +78,7 @@ async def assign_manager(request: web.Request) -> web.Response:
             UUID(request.match_info["contract_id"]),
             UUID(request.match_info["membership_id"]),
             await body(request, AssignManager),
+            revoke=request.method == "DELETE",
         )
         await actor.session.commit()
         return response({"ok": True, "contract": result.model_dump(mode="json")})

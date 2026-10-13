@@ -160,7 +160,7 @@ test("rotation preserves the visible list and retries recover the new code witho
 test("legacy invitations explain the missing plaintext without revoking the working code", async (context) => {
   const { api, target, click, open } = setup(context);
   api.invitations.push({ id: '40000000-0000-4000-8000-000000000001', kind: 'reusable', used_count: 2, reserved_count: 0,
-    use_limit: 10, revoked_at: null, created_at: '2028-01-01T00:00:00Z', code: null, link: null });
+    use_limit: 10, version: 1, revoked_at: null, created_at: '2028-01-01T00:00:00Z', code: null, link: null });
   await open(); await click('Invitations');
   assert.match(target.textContent, /only its hash is stored/); assert.equal(api.invitations[0].revoked_at, null);
   assert.equal(target.querySelector('[name="code"]'), null); assert.ok(api.calls.every(c => c.method === 'GET'));
@@ -375,6 +375,36 @@ test('assigning a manager from members confirms and retries the same version wit
   await click('Retry the same request'); assert.equal(api.contracts[0].version, 2);
   assert.equal(api.contracts[0].manager_user_id, member.profile.user_id);
   for (const key of ['name', 'tariff_key', 'ends_at', 'external_squad_uuid']) assert.equal(api.contracts[0][key], original[key]);
-  assert.equal([...card().querySelectorAll('button')].find(b => b.textContent === 'Subscription manager').disabled, true);
+  assert.equal([...card().querySelectorAll('button')].find(b => b.textContent === 'Revoke manager role').disabled, false);
   const calls = api.calls.filter(c => c.path.endsWith('/manager')); assert.equal(calls.length, 2); assert.deepEqual(calls[0].body, calls[1].body);
+});
+
+test('revoking the manager role confirms and survives a lost response without removing membership', async (t) => {
+  const { api, target, click, open } = setup(t);
+  api.contracts[0].manager_user_id = api.members[0].profile.user_id;
+  await open(); await click('Members');
+  const original = structuredClone(api.members);
+  await click('Revoke manager role'); await click('Cancel', target.querySelector('dialog'));
+  assert.notEqual(api.contracts[0].manager_user_id, null);
+  api.loseNextWrite = true; await click('Revoke manager role'); await click('Confirm', target.querySelector('dialog'));
+  await click('Retry the same request');
+  assert.equal(api.contracts[0].manager_user_id, null); assert.equal(api.contracts[0].version, 2);
+  assert.deepEqual(api.members, original); assert.match(target.textContent, /Manager role revoked/);
+  const writes = api.calls.filter(c => c.method === 'DELETE'); assert.equal(writes.length, 2); assert.deepEqual(writes[0], writes[1]);
+});
+
+test('manual addition searches and confirms an account with terms, then retries one membership', async (t) => {
+  const { api, target, click, fill, submit, open } = setup(t); await open(); await click('Members');
+  const panel = target.querySelector('#corp-panel-members');
+  fill('member_query', '@fixture_manager'); await submit();
+  await click('Add member', panel); assert.match(target.querySelector('dialog').textContent, /Remaining personal subscription time/);
+  assert.match(target.querySelector('dialog').textContent, /ms_40000000000040008000000000000001/);
+  await click('Cancel', target.querySelector('dialog')); assert.equal(api.members.length, 2);
+  api.loseNextWrite = true; await click('Add member', panel); await click('Confirm', target.querySelector('dialog'));
+  await click('Retry the same request');
+  assert.equal(api.members.length, 3); assert.equal(api.members[2].state, 'pending'); assert.equal(api.invitations.length, 0);
+  assert.equal(api.contracts[0].manager_user_id, 910011); assert.match(target.textContent, /Member addition accepted/);
+  const writes = api.calls.filter(c => c.method === 'POST' && c.path.endsWith('/members'));
+  assert.equal(writes.length, 2); assert.deepEqual(writes[0].body, writes[1].body);
+  assert.equal(panel.querySelector('[name="member_query"]').value, '');
 });

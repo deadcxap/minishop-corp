@@ -12,7 +12,7 @@ export class MembersPanel extends Panel {
   constructor(language: string, private current: () => { id: string; member_count?: number; manager_user_id?: number | null },
     private scope: "admin" | "manager" = "admin", client?: (signal: AbortSignal) => ApiClient,
     private promote?: (row: CorporateMember) => Promise<void>) {
-    super(language, client); void this.run(() => this.load());
+    super(language, client); queueMicrotask(() => { if (this.alive) void this.run(() => this.load()); });
     this.timer = setInterval(() => {
       if (this.root.hidden || document.hidden || this.busy || this.retry || this.confirming || this.rows.length > 25
         || !this.rows.some((row) => row.state === "pending" || row.state === "leaving")) return;
@@ -23,6 +23,10 @@ export class MembersPanel extends Panel {
     if (error instanceof ApiError && (this.scope === "manager" || [401, 403, 404].includes(error.status))) {
       this.rows = []; this.avatars.clear(); this.after = null;
     }
+  }
+  protected renderActions(body: HTMLElement): void {
+    const actions = el("div", undefined, "corp-actions");
+    actions.append(button(this.t("refresh"), () => { void this.run(() => this.load()); })); body.append(actions);
   }
   get path(): string { return `/${this.scope === "admin" ? "contracts" : "managed-contracts"}/${this.current().id}/members`; }
   async load(after?: string): Promise<void> {
@@ -87,8 +91,7 @@ export class MembersPanel extends Panel {
   }
   render(): void {
     this.paint((body) => {
-      const actions = el("div", undefined, "corp-actions");
-      actions.append(button(this.t("refresh"), () => { void this.run(() => this.load()); })); body.append(actions);
+      this.renderActions(body);
       if (!this.loaded) body.append(el("p", translate(this.language, "wa_minishop_corp_loading")));
       else if (!this.rows.length) body.append(el("p", this.t("empty_members"), "corp-empty"));
       for (const row of this.rows) {
@@ -127,8 +130,9 @@ export class MembersPanel extends Panel {
         const tools = el("div", undefined, "corp-stack"); tools.append(el("span", this.t(`state_${row.state}`), "corp-pill"));
         if (this.scope === "admin" && this.promote) {
           const assigned = this.current().manager_user_id === row.profile.user_id;
-          const manager = button(this.t(assigned ? "current_manager" : "make_manager"), () => { void this.promote?.(row); });
-          manager.disabled = assigned || row.state !== "active"; tools.append(manager);
+          if (assigned) tools.append(el("span", this.t("current_manager"), "corp-pill"));
+          const manager = button(this.t(assigned ? "revoke_manager" : "make_manager"), () => { void this.promote?.(row); });
+          manager.disabled = !assigned && row.state !== "active"; tools.append(manager);
         }
         if (row.operation && row.operation.state !== "succeeded") {
           tools.append(el("small", this.t(`state_${row.operation.state}`)));

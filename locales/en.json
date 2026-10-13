@@ -14,7 +14,7 @@
   "minishop_corp_flexible_limits_unsupported": "This subscription has separately purchased traffic quotas. An administrator needs to review the transfer.",
   "minishop_corp_subscription_missing": "Subscription not found. Please contact support.",
   "minishop_corp_access_denied": "You do not have access to this action.",
-  "minishop_corp_account_unavailable": "The manager account is missing or blocked.",
+  "minishop_corp_account_unavailable": "The account is missing or blocked.",
   "minishop_corp_squad_unavailable": "Unable to confirm the external squad. Check the selection and panel availability.",
   "minishop_corp_request_conflict": "This request conflicts with saved changes. Refresh the data.",
   "minishop_corp_version_conflict": "The corporate subscription terms have changed. Refresh the data before saving.",
@@ -219,5 +219,11 @@
   "admin_minishop_corp_delete_contract": "Delete subscription",
   "admin_minishop_corp_delete_contract_hint": "The subscription, all its codes and plugin history will be permanently deleted. Remove every member and wait for all operations to finish first. Minishop accounts will be kept.",
   "admin_minishop_corp_contract_deleted": "Corporate subscription deleted.",
-  "minishop_corp_contract_not_empty": "Remove every member and wait for all operations to finish before deleting the subscription."
+  "minishop_corp_contract_not_empty": "Remove every member and wait for all operations to finish before deleting the subscription.",
+  "admin_minishop_corp_revoke_manager": "Revoke manager role",
+  "admin_minishop_corp_revoke_manager_hint": "The store administrator will manage this subscription. This user will keep their membership and access.",
+  "admin_minishop_corp_manager_revoked": "Manager role revoked.",
+  "admin_minishop_corp_add_member": "Add member",
+  "admin_minishop_corp_add_member_hint": "The user’s current plan and expiry will be replaced with the corporate subscription terms. Remaining personal subscription time will not be retained. Auto-renewal must be disabled and personal payments completed or cancelled. The manager role will stay unchanged.",
+  "admin_minishop_corp_member_queued": "Member addition accepted. Access will be available once the operation completes."
 }

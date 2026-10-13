@@ -5,7 +5,7 @@ import type { CorporateMember } from "../shared/members";
 import { contract, list, type Contract } from "./data";
 import { Editor } from "./editor";
 import { InvitationsPanel } from "./invitations";
-import { MembersPanel } from "../shared/member-panel";
+import { AdminMembersPanel } from "./members";
 import { SynchronizationPanel } from "./synchronization";
 import { DraftStore, type EditorDraft, type Tab } from "./draft";
 import "../shared/styles.css";
@@ -89,14 +89,15 @@ export class AdminView extends Panel {
   async assignManager(member: CorporateMember): Promise<void> {
     if (!this.current || this.confirming || !await this.canLeave()) return;
     const current = this.current;
-    if (!await confirm(this.root, this.t("make_manager"), `${person(member.profile)}\n${this.t("make_manager_hint")}`, this.language, this.controller.signal)) return;
+    const revoke = current.manager_user_id === member.profile.user_id;
+    if (!await confirm(this.root, this.t(revoke ? "revoke_manager" : "make_manager"), `${person(member.profile)}\n${this.t(revoke ? "revoke_manager_hint" : "make_manager_hint")}`, this.language, this.controller.signal)) return;
     const payload = { expected_version: current.version };
     await this.run(async () => {
-      const saved = contract((await this.api.request(`/contracts/${current.id}/members/${member.id}/manager`, "POST", payload)).contract);
+      const saved = contract((await this.api.request(`/contracts/${current.id}/members/${member.id}/manager`, revoke ? "DELETE" : "POST", payload)).contract);
       this.current = saved; this.rows = this.rows.map((row) => row.id === saved.id ? saved : row);
       this.panels.get("terms")?.destroy(); this.panels.delete("terms"); this.restoredEditor = null;
       this.panels.get("members")?.render();
-      this.notice = "admin_minishop_corp_manager_assigned";
+      this.notice = revoke ? "admin_minishop_corp_manager_revoked" : "admin_minishop_corp_manager_assigned";
     }, true);
   }
   async removeContract(): Promise<void> {
@@ -118,7 +119,7 @@ export class AdminView extends Panel {
       this.current = value; this.mode = "detail";
       this.rows = this.rows.map((row) => row.id === value.id ? value : row);
       this.render();
-    }, this.restoredEditor) : tab === "members" ? new MembersPanel(this.language, current, "admin", undefined, (row) => this.assignManager(row))
+    }, this.restoredEditor) : tab === "members" ? new AdminMembersPanel(this.language, current, (row) => this.assignManager(row))
       : tab === "invitations" ? new InvitationsPanel(this.language, current)
         : new SynchronizationPanel(this.language, current);
     if (tab === "terms") this.restoredEditor = null;

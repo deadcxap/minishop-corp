@@ -128,7 +128,8 @@ class OperationWorker:
             return False
         draft = OperationDraft.model_validate(operation, from_attributes=True)
         target = draft.target
-        if operation.kind == "join":
+        invited = isinstance(target, PeriodTarget) and target.enrollment == "invitation"
+        if operation.kind == "join" and invited:
             reservation = await session.scalar(
                 select(Reservation)
                 .where(
@@ -146,7 +147,9 @@ class OperationWorker:
             # members, queued activation uses its latest committed terms. Keep
             # the originally accepted version for request idempotency.
             if operation.contract_version != contract.version:
-                target = period_target(contract, accepted_version=target.accepted_version)
+                target = period_target(
+                    contract, accepted_version=target.accepted_version
+                ).model_copy(update={"enrollment": target.enrollment})
                 operation.contract_version = contract.version
                 operation.target = target.model_dump(mode="json")
         elif isinstance(target, TrialTarget):
@@ -201,14 +204,15 @@ class OperationWorker:
             member.joined_at = member.joined_at or instant
             mark_reconciled(member, operation.contract_version, instant)
             await session.flush()
-            if member.invitation_id is None:
+            if invited and member.invitation_id is None:
                 raise ContractError("minishop_corp_operation_stale", 409)
-            await settle_reservation(
-                session,
-                user_id=operation.user_id,
-                invitation_id=member.invitation_id,
-                operation_id=operation.id,
-            )
+            if invited and member.invitation_id is not None:
+                await settle_reservation(
+                    session,
+                    user_id=operation.user_id,
+                    invitation_id=member.invitation_id,
+                    operation_id=operation.id,
+                )
         elif operation.kind == "reconcile":
             mark_reconciled(member, operation.contract_version, instant)
         else:

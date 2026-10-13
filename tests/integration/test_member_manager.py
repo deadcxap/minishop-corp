@@ -88,3 +88,64 @@ async def test_promote_only_current_member_and_revoke_old_manager(
     assert (
         await client.post(path, headers=authorization(host), json={"expected_version": 2})
     ).status == 404
+
+
+@pytest.mark.parametrize("state", ["active", "leaving"])
+async def test_revoke_from_member_keeps_membership_and_retries(
+    client: TestClient, host: Host, state: str
+) -> None:
+    contract_id = await create_api_contract(client, host)
+    member = Membership(
+        contract_id=contract_id, user_id=MANAGER, current_user_id=MANAGER, state=state
+    )
+    host.session.add(member)
+    await host.session.flush()
+    path = f"{ADMIN_PATH}/{contract_id}/members/{member.id}/manager"
+    payload = {"expected_version": 1}
+    assert (await client.delete(path, json=payload)).status == 401
+    assert (
+        await client.delete(path, json=payload, headers=authorization(host, MANAGER))
+    ).status == 403
+    cookie = (
+        "rw_webapp_session="
+        + create_webapp_session_token(host.settings, USER_ID)
+        + "; rw_webapp_csrf=fixture-csrf"
+    )
+    assert (
+        await client.delete(
+            path,
+            json=payload,
+            headers={"Cookie": cookie, "Origin": str(client.make_url("/")).rstrip("/")},
+        )
+    ).status == 403
+    foreign = await create_api_contract(client, host)
+    assert (
+        await client.delete(
+            f"{ADMIN_PATH}/{foreign}/members/{member.id}/manager",
+            json=payload,
+            headers=authorization(host),
+        )
+    ).status == 404
+    calls = list(host.panel.requests)
+    for _ in range(2):
+        reply = await client.delete(path, json=payload, headers=authorization(host))
+        assert reply.status == 200, await reply.text()
+        saved = (await reply.json())["contract"]
+        assert (
+            saved["manager_user_id"] is None
+            and saved["version"] == 2
+            and saved["member_count"] == 1
+        )
+    await host.session.refresh(member)
+    assert member.state == state and member.current_user_id == MANAGER and member.generation == 1
+    assert host.panel.requests == calls
+    assert (
+        await client.get(
+            f"{USER_PATH}/managed-contracts/{contract_id}", headers=authorization(host, MANAGER)
+        )
+    ).status == 404
+    assert (
+        await client.get(
+            f"{USER_PATH}/contracts/{contract_id}", headers=authorization(host, MANAGER)
+        )
+    ).status == 200

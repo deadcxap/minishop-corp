@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from .contracts_types import ContractSummary
+from .contracts_types import AccountId, ContractSummary, Version
 from .invitations_types import OfferReference, PreviewInvitation, TariffOffer
 from .storage.operations import DisabledTarget, TrialTarget
 from .storage.schema import MembershipState, Operation, OperationKind, OperationState
@@ -21,6 +21,13 @@ class ConfirmMembership(PreviewInvitation):
 class DepartMembership(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     request_id: UUID
+
+
+class AddMembership(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    request_id: UUID
+    user_id: AccountId
+    expected_version: Version
 
 
 class DepartureResult(BaseModel):

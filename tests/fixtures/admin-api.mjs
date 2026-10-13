@@ -17,7 +17,7 @@ export function fixture() {
     calls: [], actorUserId: 910001, loseNextWrite: false, failList: false, pending: false,
     contracts: [{ id: CONTRACT_ID, name: "Fixture organization — a long name for responsive contract management", tariff_key: "corp",
       external_squad_uuid: SQUAD_ID, manager_user_id: 910011, ends_at: "2030-10-01T12:42:23.123Z", version: 1, expired: false, member_count: 2 }],
-    invitations: [],
+    invitations: [], additions: new Map(),
     members: [
       { id: MEMBER_ID, state: "active", joined_at: now, profile: { ...profile, user_id: 910021, minishop_id: MEMBER_MINISHOP_ID, first_name: "Fixture <script>alert(1)</script>", last_name: "Very long member name" },
         statistics: { traffic_used_bytes: available(1073741824), traffic_limit_bytes: available(21474836480), device_count: available(2), device_limit: available(5) },
@@ -87,15 +87,26 @@ export function fixture() {
       return ok({ invitation: row, code: row.code, link: row.link, created: true, notice: "minishop_corp_code_saved" });
     }
     if (parts[2] === "members") {
-      if (parts.length === 3) return ok({ members: state.members, next_after: null });
+      if (parts.length === 3) {
+        if (method === "POST") {
+          if (state.additions.has(body.request_id)) return ok({ operation: state.additions.get(body.request_id) });
+          if (current.version !== body.expected_version) return fail("minishop_corp_version_conflict", 409);
+          if (state.members.some(row => row.profile.user_id === body.user_id)) return fail("minishop_corp_already_member", 409);
+          const operation = { id: body.request_id, membership_id: body.request_id, kind: "join", state: "pending", attempts: 0, error_code: null, next_attempt_at: now, updated_at: now };
+          state.members.push({ ...state.members[1], id: body.request_id, profile: { ...profile, user_id: body.user_id }, state: "pending", operation });
+          current.member_count++; state.additions.set(body.request_id, operation); return ok({ operation });
+        }
+        return ok({ members: state.members, next_after: null });
+      }
       const row = state.members.find((row) => row.id === parts[3]);
       if (!row) return fail("minishop_corp_membership_missing", 404);
       if (parts[4] === "avatar") return ok({ avatar: { data_url: PNG, state: "available", updated_at: now } });
       if (parts[4] === "manager") {
-        if (row.state !== "active") return fail("minishop_corp_membership_missing", 404);
-        if (current.manager_user_id === row.profile.user_id && [body.expected_version, body.expected_version + 1].includes(current.version)) return ok({ contract: current });
+        const revoke = method === "DELETE", manager = revoke ? null : row.profile.user_id;
+        if (!revoke && row.state !== "active") return fail("minishop_corp_membership_missing", 404);
+        if (current.manager_user_id === manager && [body.expected_version, body.expected_version + 1].includes(current.version)) return ok({ contract: current });
         if (body.expected_version !== current.version) return fail("minishop_corp_version_conflict", 409);
-        current.manager_user_id = row.profile.user_id; current.version++; return ok({ contract: current });
+        current.manager_user_id = manager; current.version++; return ok({ contract: current });
       }
       if (parts[4] === "exclude") {
         state.pending = true; row.state = "leaving";
