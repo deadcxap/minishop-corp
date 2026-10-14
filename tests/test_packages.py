@@ -104,7 +104,7 @@ def test_release_package_accepts_compatible_core_with_another_revision(
 
 
 @pytest.mark.parametrize("capability", ["user_ui", "ui_composition"])
-@pytest.mark.parametrize("provided_version", [None, 2])
+@pytest.mark.parametrize("provided_version", [None, 0])
 def test_release_package_rejects_missing_or_incompatible_capability(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

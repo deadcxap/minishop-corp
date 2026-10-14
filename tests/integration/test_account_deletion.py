@@ -14,7 +14,8 @@ from bot.app.web.webapp.assets import _csrf_protection_middleware
 from bot.plugins.spec import WEB_SCOPE_WEBAPP, PluginContext
 from bot.services.account_roles import grant_role
 from db.dal import user_dal
-from db.dal.user_merge_dal import delete_user_and_relations, merge_users
+from db.dal.user_dal import delete_user_and_relations
+from db.dal.user_merge_dal import merge_users
 from db.models import Subscription
 from minishop_corp import plugin
 from minishop_corp.contracts import Contracts

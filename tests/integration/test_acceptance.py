@@ -12,7 +12,7 @@ from bot.plugins.extensions.registry import ExtensionRegistry, get_registry, set
 from bot.plugins.extensions.rewards import Reward, grant
 from bot.services.account_roles import grant_role
 from db.dal import user_dal
-from db.dal.user_merge_dal import delete_user_and_relations
+from db.dal.user_dal import delete_user_and_relations
 from db.models import Subscription
 from minishop_corp.integration.access import AccessAdapter
 from minishop_corp.integration.access_types import panel_time

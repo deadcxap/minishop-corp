@@ -4,7 +4,8 @@ from uuid import UUID
 
 import pytest
 from db.dal import user_dal
-from db.dal.user_merge_dal import delete_user_and_relations, merge_users
+from db.dal.user_dal import delete_user_and_relations
+from db.dal.user_merge_dal import merge_users
 from minishop_corp.storage.schema import Contract, Invitation, Membership, Revision
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError

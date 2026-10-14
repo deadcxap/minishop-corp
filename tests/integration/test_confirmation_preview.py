@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from db.dal import security_dal, user_dal
-from db.dal.user_merge_dal import delete_user_and_relations
+from db.dal.user_dal import delete_user_and_relations
 from minishop_corp.contracts import Contracts
 from minishop_corp.contracts_types import ContractError, UpdateContract
 from minishop_corp.integration.code_attempts import FAILURE_SCOPE, CodeAttempts
