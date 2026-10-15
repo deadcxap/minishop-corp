@@ -128,3 +128,12 @@ UI использует host API, зарегистрированные стра�
 
 Локальный коммит не означает push или установку на рабочий бот. В отчёте укажите
 изменения, выполненные проверки, существенные ограничения и созданные коммиты.
+
+## Справочник разработчика
+
+- [Покрытие требований тестами](docs/acceptance.md), [локальное окружение](docs/development.md).
+- API: [контракты и аудитории](docs/contracts-api.md), [приглашения](docs/invitations.md),
+  [членство](docs/membership-api.md), [участники](docs/members-api.md),
+  [сверка](docs/reconciliation.md).
+- [Хранилище](docs/storage.md), [удаление аккаунтов](docs/account-deletion.md),
+  [совместимость адаптера](docs/minishop-compatibility.md).

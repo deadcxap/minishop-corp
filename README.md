@@ -19,14 +19,14 @@
 
 ## Совместимость
 
-Текущая версия — **0.1.13**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
+Версия исходников — **0.1.13**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
 frontend host API 1 и возможности Minishop `user_ui: 1`, `ui_composition: 1`.
 Установка проверяет эти возможности без привязки к конкретному commit ядра.
 Проверенная база — **Minishop 3.8.1** из [dev/minishop.json](dev/minishop.json);
 работу с Remnawave обеспечивает сам Minishop.
 
 Проверка **Minishop 3.8.2** выявила две несовместимости с новыми автоплатежами
-и настройкой приветственного бонуса; см. [результаты проверки](docs/minishop-3.8.2-assessment.md).
+и настройкой приветственного бонуса; см. [совместимость](docs/minishop-compatibility.md#minishop-382).
 
 Аккаунты с действующими или будущими гибкими квотами `FlexibleTrafficLimit`
 не поддерживаются. При вступлении личный тариф и срок заменяются корпоративными;
@@ -40,8 +40,9 @@ frontend host API 1 и возможности Minishop `user_ui: 1`, `ui_composi
 Minishop найдёт и скачает подписанный пакет; останется подтвердить установку
 и включить плагин.
 
-Это работает после первого успешного запуска публикации в Actions. Для собственного
-репозитория один раз настройте ключ издателя и права workflow по
+По ссылке устанавливается версия из [опубликованного индекса](minishop-plugin.json).
+Исходники ветки могут содержать более новую версию. Для собственного репозитория
+настройте ключ издателя и права workflow по
 [инструкции сборки](docs/ci-packaging.md). Установка, обновление и эксплуатация — в
 [руководстве](docs/installation.md).
 
@@ -128,16 +129,10 @@ Minishop найдёт и скачает подписанный пакет; ос�
 
 ## Документация
 
-- [Требования и критерии приёмки](docs/specification.md).
-- [Текущее состояние и оставшиеся задачи](docs/implementation-plan.md).
+- [Установка и эксплуатация](docs/installation.md).
 - [Администратор магазина](docs/admin-ui.md), [участник и управляющий](docs/customer-ui.md).
 - [Совместимость и ограничения](docs/minishop-compatibility.md), [диагностика](docs/logging.md).
-- [Разработка и проверки](CONTRIBUTING.md), [локальное окружение](docs/development.md).
-- [Сборка пакета](docs/ci-packaging.md), [покрытие требований тестами](docs/acceptance.md).
-- API: [контракты](docs/contracts-api.md), [приглашения](docs/invitations.md),
-  [членство](docs/membership-api.md), [участники](docs/members-api.md),
-  [сверка](docs/reconciliation.md).
-- [Хранилище](docs/storage.md), [удаление аккаунтов](docs/account-deletion.md).
+- [Разработка, проверки и справочник API](CONTRIBUTING.md), [сборка пакета](docs/ci-packaging.md).
 
 ## Лицензия
 
