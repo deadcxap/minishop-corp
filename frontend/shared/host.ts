@@ -11,4 +11,5 @@ export interface CustomerProps {
 
 export interface AdminProps {
   currentLang?: string;
+  routePrefix?: string;
 }

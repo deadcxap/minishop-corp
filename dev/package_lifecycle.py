@@ -208,6 +208,19 @@ async def main() -> None:
             )
 
         code_path = f"/api/admin/minishop-corp/contracts/{contract.id}/invitations"
+        selected = await post(
+            "/api/admin/minishop-corp/broadcast-audiences", {"contract_ids": [str(contract.id)]}
+        )
+        broadcast_target = selected["target"]
+
+        async def audience_present() -> None:
+            async with http.get(BASE + "/api/admin/broadcast/audience-counts") as response:
+                assert response.status == 200, await response.text()
+                data = await response.json()
+                assert data["counts"][broadcast_target] == 0
+                assert any(row["target"] == broadcast_target for row in data["audiences"])
+
+        await audience_present()
         async with http.post(
             BASE + code_path,
             json={"id": str(uuid4()), "kind": "single", "use_limit": 1},
@@ -220,7 +233,14 @@ async def main() -> None:
 
         async def snapshot() -> list[list[dict[str, object]]]:
             async with factory() as session:
-                tables = ["contracts", "revisions", "invitations", "memberships", "audit"]
+                tables = [
+                    "contracts",
+                    "revisions",
+                    "invitations",
+                    "memberships",
+                    "audit",
+                    "broadcast_audiences",
+                ]
                 rows = [
                     [
                         dict(row)
@@ -236,13 +256,25 @@ async def main() -> None:
                             "SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'"
                         )
                     )
-                ) == 10
+                ) == 11
                 return rows
 
         before = await snapshot()
         await enabled(False)
         assert await snapshot() == before
+        async with http.post(
+            BASE + "/api/admin/broadcast",
+            json={
+                "target": broadcast_target,
+                "text": "Synthetic disabled audience",
+                "channels": ["telegram"],
+                "scheduled_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+            },
+        ) as response:
+            assert response.status == 400
+            assert (await response.json())["error"] == "invalid_audience"
         await enabled(True)
+        await audience_present()
         assert await snapshot() == before
         print("PASS: disable/enable removes/restores routes and preserves contracts and history")
 
@@ -325,7 +357,9 @@ async def main() -> None:
             codes = (await response.json())["invitations"]
             restored = next(row for row in codes if row["id"] == saved_invite_id)
             assert restored["code"] == saved_code
-        print("PASS: reinstall reuses all ten migrations without data loss")
+        print("PASS: reinstall reuses all eleven migrations without data loss")
+        await audience_present()
+        print("PASS: corporate audience survives restart/reinstall and fails closed while disabled")
         print("PASS: authorized invitation list retains the same visible code after reinstall")
 
 

@@ -7,11 +7,12 @@ from bot.plugins.extensions import ExtensionContributions
 from bot.plugins.spec import WEB_SCOPE_WEBAPP, Plugin, PluginContext, WorkerTaskSpec
 
 from .api import setup_routes
+from .integration.broadcasts import setup_broadcast_web, setup_broadcasts
 from .integration.migrations import Migration, migrations
 from .integration.views import view_policy
 from .integration.worker import run_operations, run_reconciliation_task
 
-__version__ = "0.1.9"
+__version__ = "0.1.10"
 
 
 class CorporatePlugin(Plugin):
@@ -19,6 +20,9 @@ class CorporatePlugin(Plugin):
     version = __version__
     plugin_api_min_version = 1
     plugin_api_max_version = 1
+
+    def setup(self, ctx: PluginContext) -> None:
+        setup_broadcasts(ctx)
 
     def migrations(self) -> list[Migration]:
         return migrations()
@@ -28,6 +32,7 @@ class CorporatePlugin(Plugin):
 
     def setup_web(self, ctx: PluginContext, app: web.Application, *, scope: str) -> None:
         if scope == WEB_SCOPE_WEBAPP:
+            setup_broadcast_web(ctx, app)
             setup_routes(app)
 
     def locales_dir(self) -> Path:

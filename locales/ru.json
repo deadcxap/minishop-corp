@@ -229,5 +229,17 @@
   "admin_minishop_corp_edit_limit": "Изменить лимит",
   "admin_minishop_corp_edit_limit_hint": "Код и счётчики сохранятся. Лимит не может быть меньше суммы использований и резервов.",
   "admin_minishop_corp_invitation_updated": "Лимит приглашения сохранён.",
-  "minishop_corp_invitation_limit_too_low": "Лимит не может быть меньше суммы использованных и зарезервированных активаций. Обновите список."
+  "minishop_corp_invitation_limit_too_low": "Лимит не может быть меньше суммы использованных и зарезервированных активаций. Обновите список.",
+  "admin_minishop_corp_broadcast_group": "Корпоративные подписки",
+  "admin_minishop_corp_broadcast_title": "Корпоративная рассылка",
+  "admin_minishop_corp_broadcast_hint": "Для одной подписки можно выбрать её в поле «Аудитория» ниже. Для нескольких выберите подписки здесь.",
+  "admin_minishop_corp_broadcast_choose": "Выбрать подписки",
+  "admin_minishop_corp_broadcast_hide": "Скрыть выбор",
+  "admin_minishop_corp_broadcast_selected": "Выбрано подписок: {count} из 100",
+  "admin_minishop_corp_broadcast_recipients_hint": "Рассылка охватывает нынешних участников, включая подписки с истёкшим сроком. Minishop учитывает доступные каналы и настройки уведомлений. Получатели определяются при начале отправки.",
+  "admin_minishop_corp_broadcast_prepare": "Подготовить аудиторию",
+  "admin_minishop_corp_broadcast_open": "Открыть редактор рассылки",
+  "admin_minishop_corp_broadcast_new_tab": "Редактор откроется в новой вкладке с выбранной аудиторией. Текущий черновик сохранится. Подготовка аудитории ничего не отправляет.",
+  "minishop_corp_broadcast_contract_missing": "Одна из выбранных корпоративных подписок удалена или недоступна. Выберите аудиторию заново.",
+  "admin_minishop_corp_broadcast_unavailable": "Корпоративная аудитория недоступна"
 }

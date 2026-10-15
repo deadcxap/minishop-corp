@@ -13,6 +13,7 @@ from .migration_0007 import upgrade as optional_manager
 from .migration_0008 import upgrade as invitation_previews
 from .migration_0009 import upgrade as visible_invitation_codes
 from .migration_0010 import upgrade as multiple_invitation_codes
+from .migration_0011 import upgrade as broadcast_audiences
 
 # Fixed, namespaced schema; all constraints/indexes belong to plugin tables.
 INITIAL_DDL = (
@@ -219,5 +220,10 @@ def migrations() -> list[Migration]:
             id="minishop-corp.0010_multiple_invitation_codes",
             description="Allow multiple reusable invitations and version limit edits",
             upgrade=multiple_invitation_codes,
+        ),
+        Migration(
+            id="minishop-corp.0011_broadcast_audiences",
+            description="Persist immutable selections for native corporate broadcasts",
+            upgrade=broadcast_audiences,
         ),
     ]

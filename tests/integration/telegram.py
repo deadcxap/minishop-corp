@@ -13,6 +13,7 @@ PNG = base64.b64decode(
 class Telegram:
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.messages: list[dict[str, str]] = []
         self.fail = False
         self.no_photo = False
         self.started: asyncio.Event | None = None
@@ -32,6 +33,20 @@ class Telegram:
             return web.json_response(
                 {"ok": False, "error_code": 500, "description": "Synthetic Telegram outage"},
                 status=500,
+            )
+        if method == "sendMessage":
+            data = {key: str(value) for key, value in (await request.post()).items()}
+            self.messages.append(data)
+            return web.json_response(
+                {
+                    "ok": True,
+                    "result": {
+                        "message_id": len(self.messages),
+                        "date": 1,
+                        "chat": {"id": int(data["chat_id"]), "type": "private"},
+                        "text": data["text"],
+                    },
+                }
             )
         photo = {
             "file_id": "synthetic-avatar",

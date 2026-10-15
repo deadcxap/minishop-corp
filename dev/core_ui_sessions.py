@@ -5,10 +5,12 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+from bot.app.web.admin_api_impl.common import _write_tariffs_config_file
 from bot.app.web.webapp_auth import create_webapp_session_token
 from bot.plugins.packages import package_root
 from bot.services.account_roles import grant_role
 from config.settings import get_settings
+from config.tariffs_config import TariffsConfig
 from db.dal import user_dal
 from db.database_setup import init_db_connection
 
@@ -17,6 +19,31 @@ async def main() -> None:
     settings = get_settings()
     assert settings.POSTGRES_HOST == "postgres" and settings.POSTGRES_DB == "corp_dev"
     assert str(package_root()).startswith("/runtime/")
+    config = settings.tariffs_config
+    if config is None or not config.tariffs:
+        _write_tariffs_config_file(
+            Path(settings.TARIFFS_CONFIG_PATH),
+            TariffsConfig.model_validate(
+                {
+                    "schema_version": 2,
+                    "period_unit": "day",
+                    "default_tariff": "corp-ui-fixture",
+                    "tariffs": [
+                        {
+                            "key": "corp-ui-fixture",
+                            "names": {"ru": "Тестовый", "en": "Synthetic"},
+                            "billing_model": "period",
+                            "period_unit": "day",
+                            "enabled": True,
+                            "monthly_gb": 10,
+                            "hwid_device_limit": 2,
+                            "prices_rub": {"30": 100},
+                            "enabled_periods": [30],
+                        }
+                    ],
+                }
+            ),
+        )
     factory = init_db_connection(settings)
     sessions: dict[str, str] = {}
     async with factory.begin() as session:

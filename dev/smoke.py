@@ -75,10 +75,11 @@ async def main() -> None:
                         "'minishop-corp.0007_optional_manager', "
                         "'minishop-corp.0008_invitation_previews', "
                         "'minishop-corp.0009_visible_invitation_codes', "
-                        "'minishop-corp.0010_multiple_invitation_codes')"
+                        "'minishop-corp.0010_multiple_invitation_codes', "
+                        "'minishop-corp.0011_broadcast_audiences')"
                     )
                 )
-                == 10
+                == 11
             )
 
         async def get(path: str, user_id: int, expected: int = 200) -> dict[str, object]:

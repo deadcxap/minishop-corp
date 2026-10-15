@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .broadcasts import SelectBroadcastAudience, select_audience
 from .contracts_types import (
     AssignManager,
     ContractDetails,
@@ -207,6 +208,9 @@ class Contracts:
         )
         if member is not None or operation is not None or held is not None:
             raise ContractError("minishop_corp_contract_not_empty", 409)
+        # Keep a non-personal audience tombstone: native UI otherwise falls back
+        # to "all" when a previously selected target disappears from discovery.
+        await select_audience(session, SelectBroadcastAudience(contract_ids=[contract_id]))
         # No live member/operation may be erased. All producers hold the contract
         # lock too; a waiting join sees a missing code after this transaction.
         # Delete only our tables in FK order. The current revision FK is deferred.

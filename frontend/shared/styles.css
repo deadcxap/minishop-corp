@@ -10,3 +10,7 @@
 }
 .minishop-corp h2 { margin: 0 0 12px; font-size: 1.2rem; line-height: 1.4; }
 .minishop-corp p { margin: 0; color: var(--muted, #596579); line-height: 1.6; }
+.minishop-corp .corp-broadcast-options { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); margin-block: 1rem; }
+.minishop-corp .corp-broadcast-options .corp-field { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0.75rem; border: 1px solid var(--corp-border, #8885); border-radius: 0.75rem; }
+.minishop-corp .corp-broadcast-options input[type="checkbox"] { width: 1.25rem; height: 1.25rem; }
+.minishop-corp .corp-broadcast-options small { grid-column: 1 / -1; }

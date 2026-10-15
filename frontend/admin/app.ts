@@ -8,6 +8,7 @@ import { InvitationsPanel } from "../shared/invitations-panel";
 import { AdminMembersPanel } from "./members";
 import { SynchronizationPanel } from "./synchronization";
 import { DraftStore, type EditorDraft, type Tab } from "./draft";
+import { broadcastLink } from "./broadcasts";
 import "../shared/styles.css";
 import "../shared/controls.css";
 
@@ -20,7 +21,7 @@ export class AdminView extends Panel {
   drafts: DraftStore | null = null;
   restoredEditor: EditorDraft | null = null;
   initialized = false;
-  constructor(target: HTMLElement, language: string) {
+  constructor(target: HTMLElement, language: string, readonly routePrefix = "") {
     super(language); this.root.className = "minishop-corp corp-admin"; target.append(this.root);
     for (const event of ["input", "change", "click"]) this.root.addEventListener(event, () => this.persist(), { signal: this.controller.signal });
     void this.run(() => this.initialize());
@@ -139,6 +140,8 @@ export class AdminView extends Panel {
       const heading = el("div", undefined, "corp-heading");
       const title = el("div"); title.append(el("h2", this.mode === "list" ? this.t("title") : this.mode === "new" ? this.t("new_contract") : this.current?.name));
       heading.append(title);
+      if (this.mode !== "new") heading.append(broadcastLink(this.t("broadcast_title"), this.routePrefix,
+        this.current ? `minishop-corp.contract:${this.current.id.replaceAll("-", "")}` : undefined));
       if (this.mode === "list") {
         title.append(el("p", this.t("subtitle")));
         heading.append(button(this.t("new_contract"), () => { void this.open(null); }, "corp-primary")); body.append(heading);

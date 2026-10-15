@@ -69,6 +69,17 @@
           "order": 100
         }
       ]
-    }
+    },
+    "slots": [
+      {
+        "id": "corporate-broadcast-audience",
+        "view": "corporate-broadcast-audience",
+        "target": "admin.broadcast.content",
+        "placement": "before",
+        "order": 100,
+        "label": "Corporate broadcast",
+        "i18nKey": "minishop_corp_broadcast_title"
+      }
+    ]
   }
 }
