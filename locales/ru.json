@@ -242,5 +242,11 @@
   "admin_minishop_corp_broadcast_open": "Открыть редактор рассылки",
   "admin_minishop_corp_broadcast_new_tab": "Откроется новая вкладка. Отправка — из редактора.",
   "minishop_corp_broadcast_contract_missing": "Одна из выбранных корпоративных подписок удалена или недоступна. Выберите аудиторию заново.",
-  "admin_minishop_corp_broadcast_unavailable": "Корпоративная аудитория недоступна"
+  "admin_minishop_corp_broadcast_unavailable": "Корпоративная аудитория недоступна",
+  "admin_minishop_corp_copy_code": "Копировать код",
+  "admin_minishop_corp_copy_link": "Копировать ссылку",
+  "admin_minishop_corp_usage_limit": "Использовано / лимит",
+  "admin_minishop_corp_actions": "Действия",
+  "admin_minishop_corp_close": "Закрыть",
+  "admin_minishop_corp_invitation_type": "Тип"
 }

@@ -11,6 +11,7 @@ import { SynchronizationPanel } from "./synchronization";
 import { DraftStore, type EditorDraft, type Tab } from "./draft";
 import "../shared/styles.css";
 import "../shared/controls.css";
+import "../shared/workspace.css";
 import "./styles.css";
 
 const tabs: Tab[] = ["terms", "members", "invitations", "sync"];
@@ -23,7 +24,7 @@ export class AdminView extends Panel {
   restoredEditor: EditorDraft | null = null;
   initialized = false;
   constructor(target: HTMLElement, language: string) {
-    super(language); this.root.className = "minishop-corp corp-admin"; target.append(this.root);
+    super(language); this.root.className = "minishop-corp corp-workspace corp-admin"; target.append(this.root);
     for (const event of ["input", "change", "click"]) this.root.addEventListener(event, () => this.persist(), { signal: this.controller.signal });
     void this.run(() => this.initialize());
   }

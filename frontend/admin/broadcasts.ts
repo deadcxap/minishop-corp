@@ -19,7 +19,7 @@ export class BroadcastAudienceView extends Panel {
   rows: Contract[] = []; after: string | null = null; loaded = false; expanded = false;
   selected = new Set<string>(); target: string | null = null;
   constructor(target: HTMLElement, language: string, readonly routePrefix = "") {
-    super(language); this.root.className = "minishop-corp corp-broadcast";
+    super(language); this.root.className = "minishop-corp corp-workspace corp-broadcast";
     target.append(this.root); this.render();
   }
   async load(after?: string): Promise<void> {

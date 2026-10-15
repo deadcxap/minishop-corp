@@ -242,5 +242,11 @@
   "admin_minishop_corp_broadcast_open": "Open broadcast editor",
   "admin_minishop_corp_broadcast_new_tab": "Opens a new tab. Send from the editor.",
   "minishop_corp_broadcast_contract_missing": "A selected corporate subscription was deleted or is unavailable. Select the audience again.",
-  "admin_minishop_corp_broadcast_unavailable": "Unavailable corporate audience"
+  "admin_minishop_corp_broadcast_unavailable": "Unavailable corporate audience",
+  "admin_minishop_corp_copy_code": "Copy code",
+  "admin_minishop_corp_copy_link": "Copy link",
+  "admin_minishop_corp_usage_limit": "Used / limit",
+  "admin_minishop_corp_actions": "Actions",
+  "admin_minishop_corp_close": "Close",
+  "admin_minishop_corp_invitation_type": "Type"
 }

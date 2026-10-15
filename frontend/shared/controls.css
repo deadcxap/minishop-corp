@@ -10,7 +10,7 @@
 .minishop-corp .corp-button:hover:enabled { background: var(--hover, rgba(110, 130, 160, .12)); }
 .minishop-corp .corp-button:disabled { cursor: wait; opacity: .6; }
 .minishop-corp .corp-icon { flex: 0 0 auto; vertical-align: middle; }
-.minishop-corp .corp-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; align-self: start; width: 36px; height: 36px; min-height: 36px; padding: 0; }
+.minishop-corp .corp-icon-button { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; align-self: start; width: 36px; height: 36px; min-height: 36px; padding: 0; }
 .minishop-corp .corp-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .minishop-corp .corp-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .minishop-corp .corp-panel-heading > div { min-width: 0; }

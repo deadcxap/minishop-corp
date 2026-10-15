@@ -6,7 +6,7 @@ import { customerFixture, CODE } from "../fixtures/customer-api.mjs";
 export async function customerCases(browser) {
   let passed = 0;
   for (const language of ["ru", "en"]) for (const width of [375, 1280]) for (const theme of ["light", "dark"]) {
-    const page = await browser.newPage({ viewport: { width, height: 900 }, locale: language === "ru" ? "ru-RU" : "en-US" });
+    const page = await browser.newPage({ viewport: { width, height: 900 }, hasTouch: width === 375, locale: language === "ru" ? "ru-RU" : "en-US" });
     const api = customerFixture(), errors = [];
     const dictionary = language === "ru" ? ru : en;
     const t = (key) => dictionary[`wa_minishop_corp_${key}`], a = (key) => dictionary[`admin_minishop_corp_${key}`];
@@ -66,11 +66,12 @@ export async function customerCases(browser) {
     await page.goto(`${base.replace("view=corporate-card", "view=corporate-manager")}`); await ready();
     await button(api.base.contracts[0].name).click();
     await page.locator(".corp-member img").waitFor(); await snap("manager-members");
+    assert.equal(await button(a("exclude")).first().getAttribute("title"), a("exclude"));
     await button(a("exclude")).first().click(); await write(button(a("confirm"), page.getByRole("dialog")));
     assert.equal(api.base.members.length, 2); assert.equal(api.base.members[0].state, "leaving");
     await page.getByRole("tab", { name: a("members"), exact: true }).focus(); await page.keyboard.press("ArrowRight");
     await button(a("rotate")).waitFor(); await button(a("rotate")).click(); await write(button(a("confirm"), page.getByRole("dialog")));
-    await page.locator('[name="code"]').waitFor(); assert.equal(api.base.invitations[1].use_limit, 12); await snap("manager-code");
+    await button(a("copy_code")).waitFor(); assert.equal(api.base.invitations[1].use_limit, 12); await snap("manager-code");
     const invitations = page.locator('#corp-manager-panel-invitations');
     await page.locator('[name="kind"]').selectOption("single");
     await write(button(a("generate"), invitations)); await ready();
@@ -84,10 +85,14 @@ export async function customerCases(browser) {
     await page.locator('[name="edit_use_limit"]').fill("20");
     await write(button(a("save"), card)); await ready();
     assert.equal(edited.use_limit, 20); assert.equal(edited.code, codeBefore);
+    assert.equal(await page.getByRole("table", { name: a("invitations") }).count(), 1);
+    assert.equal(await button(a("revoke"), invitations).count(), 0);
+    assert.equal(await button(a("delete_invitation"), invitations).count(), 0);
+    assert.doesNotMatch(await card.locator("time").innerText(), /UTC|\d:\d/);
     await snap("manager-invitations");
     api.manager = false; await button(a("refresh"), page.locator('[role="tabpanel"]:visible')).click();
     await page.getByText(t("manager_revoked"), { exact: true }).waitFor();
-    assert.equal(await page.locator('[name="code"]').count(), 0); assert.deepEqual(errors, []);
+    assert.equal(await page.locator('[data-invitation]').count(), 0); assert.deepEqual(errors, []);
     await snap("manager-revoked"); passed++; await page.close();
   }
   return passed;

@@ -11,19 +11,22 @@ function setup(t, viewName = "corporate-home", url = "https://fixture.invalid/",
   globalThis.window = window; globalThis.document = window.document;
   for (const key of ["HTMLElement", "HTMLInputElement"]) globalThis[key] = window[key];
   const target = document.createElement("main"); document.body.append(target);
+  const clipboard = [], clipboardApi = { writeText: async (value) => { clipboard.push(value); } };
+  t.mock.getter(globalThis, "navigator", () => ({ clipboard: clipboardApi }));
   const api = customerFixture(), signals = [], navigation = [];
   configure(api);
   const props = { language: "en", host: { version: 1, request: (path, options) => { signals.push(options.signal); return api.hostRequest(path, options); },
     navigate: (view) => navigation.push(view), navigateSection: (section) => navigation.push(section) } };
   const view = customer.mountView(viewName, target, props);
   t.after(() => { customer.unmountView(view); window.happyDOM.abort(); });
-  const click = async (text, root = target) => { const node = [...root.querySelectorAll("button")].find((b) => b.textContent === text && !b.closest("[hidden]")); assert.ok(node, text); node.click(); await flush(); };
+  const click = async (text, root = target) => { const node = [...root.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") ?? b.textContent) === text && !b.closest("[hidden]")); assert.ok(node, text); node.click(); await flush(); };
   const fill = (code) => { const node = target.querySelector('[name="corporate_code"]'); node.value = code; node.dispatchEvent(new window.Event("input", { bubbles: true })); };
   const submit = async () => { target.querySelector("form").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })); await flush(); };
   const tick = async (ms) => { t.mock.timers.tick(ms); await flush(); };
   const preview = async () => { await flush(); fill(CODE); await submit(); };
   const join = async () => { await preview(); await click("Activate corporate subscription"); await click("Confirm", target.querySelector("dialog")); };
-  return { api, target, props, view, click, fill, submit, tick, preview, join, signals, navigation };
+  const copy = async (root = target, key = "code") => { await click(key === "code" ? "Copy code" : "Copy link", root); return clipboard.at(-1); };
+  return { copy, clipboardApi, api, target, props, view, click, fill, submit, tick, preview, join, signals, navigation };
 }
 
 test("settings tile is a single compact entry without forms, actions or idle requests", async (t) => {
@@ -115,11 +118,11 @@ for (const trial of [true, false]) test(`expired membership can leave and shows 
   await click("Go to personal subscription"); assert.deepEqual(navigation, ["home"]);
 });
 test("manager controls use only scoped routes, preserve the rotation limit and handle revoked access", async (t) => {
-  const { api, target, click } = setup(t, "corporate-manager"); api.manager = true; api.seedCode(); await flush(); await click("Refresh");
+  const { api, target, click, copy } = setup(t, "corporate-manager"); api.manager = true; api.seedCode(); await flush(); await click("Refresh");
   await click(api.base.contracts[0].name); assert.match(target.textContent, /No Telegram account/);
   await click("Invitations"); assert.match(target.textContent, /4 \/ 12/); await click("Rotate code"); await click("Confirm", target.querySelector("dialog"));
-  assert.equal(api.base.invitations[1].use_limit, 12); assert.ok(target.querySelector('[name="code"]'));
-  api.manager = false; await click("Refresh"); assert.equal(target.querySelector('[name="code"]'), null); assert.match(target.textContent, /revoked/);
+  assert.equal(api.base.invitations[1].use_limit, 12); assert.ok(target.querySelector('button[aria-label="Copy code"]'));
+  api.manager = false; await click("Refresh"); assert.equal(target.querySelector('[data-invitation]'), null); assert.match(target.textContent, /revoked/);
   assert.ok(api.calls.every((c) => c.path.startsWith("/managed-contracts")));
 });
 test("manager without assignments has an empty view and unmount aborts requests and polling", async (t) => {
@@ -127,6 +130,20 @@ test("manager without assignments has an empty view and unmount aborts requests 
   const idle = api.calls.length; await tick(3600000); assert.equal(api.calls.length, idle);
   const sibling = document.createElement("aside"); target.append(sibling); customer.unmountView(view); const count = api.calls.length;
   await tick(60000); assert.equal(api.calls.length, count); assert.ok(signals.every((s) => s.aborted)); assert.deepEqual([...target.children], [sibling]);
+});
+
+test("manager table hides unavailable copy actions and clears the clipboard fallback after access is revoked", async (t) => {
+  const { api, target, clipboardApi, click } = setup(t, "corporate-manager");
+  api.manager = true; api.seedCode(); api.base.invitations[0].link = null;
+  await flush(); await click("Refresh"); await click(api.base.contracts[0].name); await click("Invitations");
+  assert.equal(target.querySelector('[aria-label="Copy link"]').disabled, true);
+  assert.match(target.textContent, /no invitation URL configured/);
+  clipboardApi.writeText = async () => { throw new Error("Clipboard denied"); };
+  await click("Copy code"); assert.equal(target.querySelector('[name="copy_value"]').value, api.base.invitations[0].code);
+  api.manager = false; await click("Refresh");
+  assert.equal(target.querySelector('[name="copy_value"]'), null);
+  assert.equal(target.querySelector('[data-invitation]'), null);
+  assert.ok(api.calls.every(call => call.method === "GET"));
 });
 test("completed activation stops polling and a fast departure immediately shows its receipt", async (t) => {
   const { api, target, join, tick, click } = setup(t); await join(); api.complete(); await tick(6000);
@@ -151,12 +168,12 @@ test("lost departure response retries the same UUID and shows no trial before co
   assert.match(target.textContent, /standard trial was granted/);
 });
 test("manager rotation recovers a lost response without minting a second code", async (t) => {
-  const { api, target, click } = setup(t, "corporate-manager"); api.manager = true; api.seedCode(); await flush(); await click("Refresh");
+  const { api, target, click, copy } = setup(t, "corporate-manager"); api.manager = true; api.seedCode(); await flush(); await click("Refresh");
   await click(api.base.contracts[0].name); await click("Invitations"); api.loseNextWrite = true;
   await click("Rotate code"); await click("Confirm", target.querySelector("dialog")); await click("Retry the same request");
-  assert.equal(api.base.invitations.length, 2); assert.equal(target.querySelector('[name="code"]').value, api.base.invitations[1].code);
+  assert.equal(api.base.invitations.length, 2); assert.equal(await copy(), api.base.invitations[1].code);
   const calls = api.calls.filter((c) => c.path.endsWith("/rotate")); assert.deepEqual(calls[0].body, calls[1].body);
-  await click('Refresh'); assert.equal(target.querySelector('[name="code"]').value, api.base.invitations[1].code);
+  await click('Refresh'); assert.equal(await copy(), api.base.invitations[1].code);
 });
 
 test('manager creates both code types and edits an existing limit without changing the code or counters', async (t) => {

@@ -6,8 +6,10 @@ import { CustomerApi } from "./api";
 import { customerOperation, membership, offer, list, nullable, summary,
   type CustomerOperation, type Membership, type Offer } from "./data";
 import { invitationFromLocation } from "./links";
+import { icon } from "../shared/icons";
 import "../shared/styles.css";
 import "../shared/controls.css";
+import "../shared/workspace.css";
 import "./styles.css";
 
 const live = (op: CustomerOperation | null): boolean => Boolean(op && ["pending", "running", "retry"].includes(op.state));
@@ -25,7 +27,7 @@ export class CustomerView extends Panel {
   };
   constructor(target: HTMLElement, public props: CustomerProps) {
     super(props.language, (signal) => new CustomerApi(() => this.props.host, signal));
-    this.root.className = "minishop-corp corp-customer"; target.append(this.root);
+    this.root.className = "minishop-corp corp-workspace corp-customer"; target.append(this.root);
     window.addEventListener("hashchange", this.followLink);
     window.addEventListener("popstate", this.followLink);
     void this.run(() => this.load());
@@ -100,13 +102,17 @@ export class CustomerView extends Panel {
         if (this.error) body.append(button(this.t("retry_load"), () => { void this.run(() => this.load()); }));
         return;
       }
-      if (this.manager) body.append(button(this.c("manager_title"), () => this.props.host.navigate("corporate-manager")));
+      if (this.manager) {
+        const manage = button("", () => this.props.host.navigate("corporate-manager"), "corp-manager-entry");
+        manage.append(icon("users"), el("span", this.c("manager_title")), icon("chevron")); body.append(manage);
+      }
       if (this.error && live(this.operation) && !this.retry) body.append(button(this.t("retry_load"), () => { void this.run(() => this.load()); }));
       if (this.current) {
         const current = this.current, expired = Date.parse(current.contract.ends_at) <= Date.now();
         const card = el("div", undefined, "corp-card");
-        card.append(el("h3", current.contract.name), el("p", `${this.c("ends_at")}: ${date(current.contract.ends_at, this.language)}`),
-          el("span", this.t(`state_${current.state}`), "corp-pill"), el("p", this.c("payment_notice"), "corp-notice"));
+        card.append(el("h3", current.contract.name), el("p", `${this.c("ends_at")}: ${date(current.contract.ends_at, this.language)}`));
+        if (current.state !== "active") card.append(el("span", this.t(`state_${current.state}`), "corp-pill"));
+        card.append(el("p", this.c("payment_notice"), "corp-notice"));
         if (expired) card.append(el("p", this.c("expired_notice"), "corp-notice"));
         const leave = button(this.c("leave"), () => { void this.leave(); }, "corp-danger"); leave.disabled = !current.can_leave;
         card.append(leave); body.append(card);
@@ -130,16 +136,19 @@ export class CustomerView extends Panel {
           offer.append(el("h3", this.proposal.contract.name), el("p", `${this.c("ends_at")}: ${date(this.proposal.contract.ends_at, this.language)}`),
             el("p", this.c("replacement"), "corp-notice"));
           const join = button(this.c("join"), () => { void this.join(); }, "corp-primary"); join.dataset.attempt = "confirm";
-          offer.append(join, button(this.c("different_code"), () => { this.proposal = null; this.offeredCode = ""; this.render(); })); body.append(offer);
+          const actions = el("div", undefined, "corp-actions");
+          actions.append(join, button(this.c("different_code"), () => { this.proposal = null; this.offeredCode = ""; this.render(); }, "corp-ghost"));
+          offer.append(actions); body.append(offer);
         } else {
-          const form = el("form", undefined, "corp-inline-form");
+          const form = el("form", undefined, "corp-inline-form corp-code-form");
           const code = input("corporate_code", this.code, (v) => { this.code = v; }); code.maxLength = 256; code.required = true; code.autocomplete = "off"; code.spellcheck = false;
           const submit = el("button", this.c("check_code"), "corp-button corp-primary"); submit.type = "submit"; submit.dataset.attempt = "preview";
-          form.append(field(this.c("code"), code, this.c("code_hint")), submit);
+          form.append(field(this.c("code"), code), submit, el("small", this.c("code_hint")));
           form.addEventListener("submit", (event) => { event.preventDefault(); if (form.reportValidity()) void this.inspect(); }); body.append(form);
         }
       }
-      body.append(button(this.c("support"), () => this.props.host.navigateSection("support")));
+      const footer = el("div", undefined, "corp-customer-footer");
+      footer.append(button(this.c("support"), () => this.props.host.navigateSection("support"), "corp-ghost")); body.append(footer);
     });
   }
   updateProps(props: CustomerProps): void { this.props = props; this.update(props.language); this.followLink(); }

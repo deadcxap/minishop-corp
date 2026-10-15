@@ -42,6 +42,12 @@ export function date(value: string | null, language: string): string {
     dateStyle: "medium", timeStyle: "short", timeZone: "UTC",
   }).format(new Date(value)) + " UTC";
 }
+export function calendarDate(value: string, language: string): string {
+  if (!Number.isFinite(Date.parse(value))) return "—";
+  return new Intl.DateTimeFormat(language.startsWith("ru") ? "ru" : "en", {
+    day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC",
+  }).format(new Date(value));
+}
 export function person(value: { first_name: string | null; last_name: string | null; username: string | null; minishop_id: string }): string {
   return [value.first_name, value.last_name].filter(Boolean).join(" ") || (value.username ? `@${value.username}` : value.minishop_id);
 }

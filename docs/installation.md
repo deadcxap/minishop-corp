@@ -2,7 +2,7 @@
 
 ## Требования
 
-**minishop-corp 0.1.11** требует Linux x86_64, Python 3.12, Plugin API 1,
+**minishop-corp 0.1.12** требует Linux x86_64, Python 3.12, Plugin API 1,
 frontend host API 1 и возможности `user_ui: 1`, `ui_composition: 1`.
 Манифест использует режим `capabilities`: другая ревизия ядра разрешена, если
 совпадают версии этих возможностей, API и runtime. Отсутствие или несовместимая

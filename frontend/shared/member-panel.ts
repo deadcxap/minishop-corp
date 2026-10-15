@@ -1,7 +1,8 @@
 import { ApiError, requestId, object, number, type ApiClient } from "./api";
 import { translate } from "./i18n";
 import type { CorporateMember, MemberAvatar, Statistic } from "./members";
-import { Panel, button, confirm, el, person, refreshButton } from "./ui";
+import { Panel, button, confirm, el, iconButton, person, refreshButton } from "./ui";
+import { icon } from "./icons";
 import { list, nullable, string } from "./api";
 import { avatar, member, operation } from "./members-data";
 
@@ -112,7 +113,15 @@ export class MembersPanel extends Panel {
           imageBox.title = translate(this.language, photo?.state === "unavailable" ? "wa_minishop_corp_data_unavailable"
             : !photo && row.avatar_path ? "wa_minishop_corp_loading" : "wa_minishop_corp_avatar_missing");
         }
-        const profile = el("div", undefined, "corp-profile"); profile.append(el("h3", name));
+        const assigned = this.current().manager_user_id === row.profile.user_id;
+        const profile = el("div", undefined, "corp-profile");
+        const heading = el("h3", name);
+        if (assigned) {
+          const badge = el("span", undefined, "corp-manager-badge");
+          badge.title = this.t("current_manager"); badge.setAttribute("role", "img"); badge.setAttribute("aria-label", badge.title);
+          badge.append(icon("shield")); heading.append(badge);
+        }
+        profile.append(heading);
         const link = row.profile.telegram_url;
         if (link && /^(https:\/\/t\.me\/[A-Za-z0-9_]+|tg:\/\/user\?id=\d+)$/.test(link)) {
           const anchor = el("a", row.profile.username ? `@${row.profile.username}` : "Telegram"); anchor.href = link; anchor.target = "_blank"; anchor.rel = "noopener noreferrer"; profile.append(anchor);
@@ -127,19 +136,21 @@ export class MembersPanel extends Panel {
           ["devices", row.statistics.device_count, row.statistics.device_limit, false]] as const) {
           const metric = el("div", undefined, "corp-metric"); metric.append(el("small", this.t(label)), this.metric(used, bytes), el("span", "/"), this.metric(max, bytes, true)); card.append(metric);
         }
-        const tools = el("div", undefined, "corp-stack"); tools.append(el("span", this.t(`state_${row.state}`), "corp-pill"));
+        const tools = el("div", undefined, "corp-member-tools"), actions = el("div", undefined, "corp-row-actions");
+        if (row.state !== "active") tools.append(el("span", this.t(`state_${row.state}`), "corp-pill"));
         if (this.scope === "admin" && this.promote) {
-          const assigned = this.current().manager_user_id === row.profile.user_id;
-          if (assigned) tools.append(el("span", this.t("current_manager"), "corp-pill"));
-          const manager = button(this.t(assigned ? "revoke_manager" : "make_manager"), () => { void this.promote?.(row); });
-          manager.disabled = !assigned && row.state !== "active"; tools.append(manager);
+          const manager = iconButton(this.t(assigned ? "revoke_manager" : "make_manager"), assigned ? "managerRemove" : "managerAdd",
+            () => { void this.promote?.(row); }, "corp-ghost");
+          manager.dataset.focus = `manager-${row.id}`;
+          manager.disabled = !assigned && row.state !== "active"; actions.append(manager);
         }
         if (row.operation && row.operation.state !== "succeeded") {
           tools.append(el("small", this.t(`state_${row.operation.state}`)));
           if (row.operation.error_code) tools.append(el("small", translate(this.language, "minishop_corp_operation_failed")));
         }
-        const remove = button(this.t("exclude"), () => { void this.exclude(row); }, "corp-danger"); remove.disabled = row.state === "leaving";
-        tools.append(remove); card.append(tools); body.append(card);
+        const remove = iconButton(this.t("exclude"), "userRemove", () => { void this.exclude(row); }, "corp-ghost corp-danger");
+        remove.dataset.focus = `exclude-${row.id}`; remove.disabled = row.state === "leaving";
+        actions.append(remove); tools.append(actions); card.append(tools); body.append(card);
       }
       if (this.after) body.append(button(this.t("load_more"), () => { void this.run(() => this.load(this.after ?? undefined)); }));
     });
