@@ -45,6 +45,7 @@ def test_installed_entry_point_and_worker_hooks(context: PluginContext) -> None:
         "minishop-corp.0008_invitation_previews",
         "minishop-corp.0009_visible_invitation_codes",
         "minishop-corp.0010_multiple_invitation_codes",
+        "minishop-corp.0011_broadcast_audiences",
     ]
 
 
@@ -66,6 +67,7 @@ def test_routes_only_in_webapp(context: PluginContext) -> None:
     assert {route.resource.canonical for route in app.router.routes()} == {
         "/api/plugins/minishop-corp/status",
         "/api/admin/minishop-corp/status",
+        "/api/admin/minishop-corp/broadcast-audiences",
         "/api/admin/minishop-corp/options/{kind}",
         "/api/admin/minishop-corp/contracts",
         "/api/admin/minishop-corp/contracts/{contract_id}",

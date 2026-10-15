@@ -19,6 +19,16 @@ class Base(DeclarativeBase):
     pass
 
 
+class BroadcastAudience(Base):
+    __tablename__ = PREFIX + "broadcast_audiences"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    # Intentionally no cascading FK: deletion must invalidate the entire saved
+    # selection, never silently narrow a scheduled broadcast to fewer contracts.
+    contract_ids: Mapped[list[str]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Contract(Base):
     __tablename__ = PREFIX + "contracts"
 

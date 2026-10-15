@@ -2,7 +2,8 @@ import { ApiError } from "../shared/api";
 import type { CustomerProps } from "../shared/host";
 import { customerText, type CustomerKey } from "../shared/i18n";
 import { MembersPanel } from "../shared/member-panel";
-import { Panel, button, date, el } from "../shared/ui";
+import { Panel, button, date, el, iconButton, refreshButton } from "../shared/ui";
+import { icon } from "../shared/icons";
 import { InvitationsPanel } from "../shared/invitations-panel";
 import { CustomerApi } from "./api";
 import { list, summary, type Summary } from "./data";
@@ -15,7 +16,7 @@ export class ManagerView extends Panel {
   tab: Tab = "members"; panels = new Map<Tab, Panel>();
   constructor(target: HTMLElement, public props: CustomerProps) {
     super(props.language, (signal) => new CustomerApi(() => this.props.host, signal));
-    this.root.className = "minishop-corp corp-customer"; target.append(this.root);
+    this.root.className = "minishop-corp corp-workspace corp-customer"; target.append(this.root);
     void this.run(() => this.load());
   }
   c(key: CustomerKey): string { return customerText(this.language, key); }
@@ -50,19 +51,27 @@ export class ManagerView extends Panel {
   }
   render(): void {
     this.paint((body) => {
-      body.append(el("h2", this.c("manager_title")), el("p", this.c("manager_hint")));
+      const heading = el("div", undefined, "corp-panel-heading"), title = el("div");
       if (!this.current) {
-        body.append(button(this.t("refresh"), () => { void this.run(() => this.load()); }));
+        title.append(el("h2", this.c("manager_title")), el("small", this.c("manager_hint")));
+        heading.append(title, refreshButton(this.t("refresh"), () => { void this.run(() => this.load()); }, this.busy)); body.append(heading);
         if (!this.loaded) body.append(el("p", this.c("loading")));
         else if (!this.rows.length) body.append(el("p", this.c("manager_empty"), "corp-empty"));
+        const rows = el("div", undefined, "corp-contract-list");
         for (const row of this.rows) {
-          const card = el("div", undefined, "corp-card"); card.append(button(row.name, () => { void this.open(row); }, "corp-link"), el("p", date(row.ends_at, this.language))); body.append(card);
+          const card = button("", () => { void this.open(row); }, "corp-managed-contract");
+          card.setAttribute("aria-label", row.name);
+          const label = el("span", undefined, "corp-managed-label");
+          label.append(el("strong", row.name), el("small", `${this.c("ends_at")}: ${date(row.ends_at, this.language)}`));
+          card.append(label, icon("chevron")); rows.append(card);
         }
+        if (this.rows.length) body.append(rows);
         if (this.after) body.append(button(this.t("load_more"), () => { void this.run(() => this.load(this.after ?? undefined)); }));
         return;
       }
-      const back = button(this.t("back"), () => { this.clear(); void this.run(() => this.load()); }); back.disabled = this.locked;
-      body.append(back, el("h3", this.current.name), el("p", date(this.current.ends_at, this.language)));
+      const back = iconButton(this.t("back"), "back", () => { this.clear(); void this.run(() => this.load()); }); back.disabled = this.locked;
+      title.append(el("h2", this.current.name), el("small", `${this.c("ends_at")}: ${date(this.current.ends_at, this.language)}`));
+      heading.classList.add("corp-manager-heading"); heading.append(back, title); body.append(heading);
       if (Date.parse(this.current.ends_at) <= Date.now()) body.append(el("p", this.t("expired"), "corp-notice"));
       const nav = el("div", undefined, "corp-tabs"); nav.setAttribute("role", "tablist"); nav.setAttribute("aria-label", this.c("manager_title"));
       for (const tab of ["members", "invitations"] as const) {

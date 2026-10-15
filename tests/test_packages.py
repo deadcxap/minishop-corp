@@ -104,7 +104,7 @@ def test_release_package_accepts_compatible_core_with_another_revision(
 
 
 @pytest.mark.parametrize("capability", ["user_ui", "ui_composition"])
-@pytest.mark.parametrize("provided_version", [None, 2])
+@pytest.mark.parametrize("provided_version", [None, 0])
 def test_release_package_rejects_missing_or_incompatible_capability(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -131,6 +131,8 @@ def standalone_project(tmp_path: Path) -> Path:
         "dev/package.json",
         "dev/minishop.json",
         "pyproject.toml",
+        "package.json",
+        "package-lock.json",
         "backend/minishop_corp/__init__.py",
         "locales/en.json",
         "locales/ru.json",
@@ -306,7 +308,12 @@ def test_repository_build_preserves_published_version_until_version_is_bumped(
     old_version = index["version"]
     major, minor, patch = (int(part) for part in old_version.split("."))
     new_version = f"{major}.{minor}.{patch + 1}"
-    for file in (source, project / "pyproject.toml"):
+    for file in (
+        source,
+        project / "pyproject.toml",
+        project / "package.json",
+        project / "package-lock.json",
+    ):
         file.write_text(file.read_text().replace(f'"{old_version}"', f'"{new_version}"'))
     updated = build_cli(project, *args)
     assert updated.returncode == 0, updated.stderr
@@ -336,11 +343,22 @@ def git(project: Path, *args: str) -> str:
     ).strip()
 
 
-def publish(project: Path, source: str) -> subprocess.CompletedProcess[str]:
+def publish(
+    project: Path, source: str, *, release: bool = False, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["bash", str(ROOT / "scripts/publish-package.sh")],
+        [
+            sys.executable,
+            str(ROOT / "scripts/publish-package.py"),
+            *(["--release"] if release else []),
+        ],
         cwd=project,
-        env={**os.environ, "CORP_PUBLISH_BRANCH": "main", "CORP_PUBLISH_SHA": source},
+        env={
+            **os.environ,
+            "CORP_PUBLISH_BRANCH": "main",
+            "CORP_PUBLISH_SHA": source,
+            **(extra_env or {}),
+        },
         text=True,
         capture_output=True,
         timeout=30,
@@ -353,6 +371,10 @@ def publication_project(standalone_project: Path) -> tuple[Path, Path, str]:
     remote = project / ".local/remote.git"
     remote.parent.mkdir()
     (project / ".gitignore").write_text(".local/\npublisher.key\n")
+    version = json.loads((project / "package.json").read_text())["version"]
+    notes = project / f"docs/releases/{version}.md"
+    notes.parent.mkdir(parents=True)
+    notes.write_text(f"# Test release {version}\n\nInstallation and compatibility notes.\n")
     git(project, "init", "--bare", str(remote))
     git(project, "init", "-b", "main")
     git(project, "add", ".")
@@ -416,3 +438,179 @@ def test_publication_rejects_damaged_archive(
     assert result.returncode != 0
     assert "checksum mismatch" in result.stderr
     assert git(remote, "rev-parse", "refs/heads/main") == source
+
+
+@pytest.mark.parametrize("target", ["package.json", "package-lock.json"])
+def test_build_refuses_inconsistent_frontend_version(standalone_project: Path, target: str) -> None:
+    project = standalone_project
+    version_file = project / target
+    data = json.loads(version_file.read_text())
+    data["version"] = "99.0.0"
+    version_file.write_text(json.dumps(data))
+    key = project / "publisher.key"
+    create_key(key)
+    built = build_cli(project, "--key", str(key), "--output", ".")
+    assert built.returncode != 0
+    assert "Python and npm package versions differ" in built.stderr
+    assert not (project / "minishop-plugin.json").exists()
+
+
+@pytest.fixture
+def release_env(publication_project: tuple[Path, Path, str]) -> dict[str, str]:
+    project, _, _ = publication_project
+    executable = project / ".local/bin/gh"
+    executable.parent.mkdir()
+    executable.write_text(
+        f"#!{sys.executable}\n" + (ROOT / "tests/fixtures/release_gh.py").read_text()
+    )
+    executable.chmod(0o755)
+    state = project / ".local/github.json"
+    state.write_text(json.dumps({"release": None, "files": {}, "calls": []}))
+    return {
+        "PATH": f"{executable.parent}:{os.environ['PATH']}",
+        "GITHUB_REPOSITORY": "example/minishop-corp",
+        "CORP_TEST_GH_STATE": str(state),
+        "GITHUB_STEP_SUMMARY": str(project / ".local/summary.md"),
+    }
+
+
+def test_release_tags_package_commit_and_does_not_republish_on_documentation_changes(
+    publication_project: tuple[Path, Path, str], release_env: dict[str, str]
+) -> None:
+    project, remote, source = publication_project
+    index = json.loads((project / "minishop-plugin.json").read_text())
+    tag = f"v{index['version']}"
+    result = publish(project, source, release=True, extra_env=release_env)
+    assert result.returncode == 0, result.stderr
+    published = git(remote, "rev-parse", "refs/heads/main")
+    assert published != source
+    assert git(remote, "rev-parse", f"refs/tags/{tag}") == published
+    state_file = Path(release_env["CORP_TEST_GH_STATE"])
+    state = json.loads(state_file.read_text())
+    assert state["release"]["draft"] is False
+    assert state["release"]["prerelease"] is False
+    assert "Installation and compatibility" in state["release"]["body"]
+    assert set(state["files"]) == {
+        "minishop-plugin.json",
+        Path(index["artifact"]).name,
+        "publisher.pub",
+        "SHA256SUMS",
+    }
+    for path in ("minishop-plugin.json", index["artifact"], "publisher.pub", "SHA256SUMS"):
+        assert base64.b64decode(state["files"][Path(path).name]) == (project / path).read_bytes()
+    (project / "README.md").write_text("Updated documentation.\n")
+    git(project, "add", "README.md")
+    git(project, "commit", "-m", "Update documentation")
+    git(project, "push", "origin", "HEAD:refs/heads/main")
+    updated = git(project, "rev-parse", "HEAD")
+    repeated = publish(project, updated, release=True, extra_env=release_env)
+    assert repeated.returncode == 0, repeated.stderr
+    assert "already published and verified" in repeated.stdout
+    assert git(remote, "rev-parse", f"refs/tags/{tag}") == published
+    assert git(remote, "rev-parse", "refs/heads/main") == updated
+    calls = json.loads(state_file.read_text())["calls"]
+    assert sum(call[:2] == ["release", "create"] for call in calls) == 1
+    assert sum(call[:2] == ["release", "upload"] for call in calls) == 1
+    assert sum(call[:2] == ["release", "edit"] for call in calls) == 1
+
+
+@pytest.mark.parametrize("interruption", ["api", "create", "upload", "edit"])
+def test_release_resumes_after_interruption_from_original_source_checkout(
+    publication_project: tuple[Path, Path, str], release_env: dict[str, str], interruption: str
+) -> None:
+    project, remote, source = publication_project
+    failed = publish(
+        project,
+        source,
+        release=True,
+        extra_env={**release_env, "CORP_TEST_GH_FAIL": interruption},
+    )
+    assert failed.returncode != 0
+    assert f"Simulated interrupted {interruption}" in failed.stderr
+    published = git(remote, "rev-parse", "refs/heads/main")
+    assert published != source
+    # Actions reruns the original source SHA and downloads the same generated artifact.
+    git(project, "checkout", "--detach", source)
+    built = build_cli(project, "--key", str(project / "publisher.key"), "--output", ".")
+    assert built.returncode == 0, built.stderr
+    resumed = publish(project, source, release=True, extra_env=release_env)
+    assert resumed.returncode == 0, resumed.stderr
+    assert "resuming its release" in resumed.stdout
+    assert git(remote, "rev-parse", "refs/heads/main") == published
+    state = json.loads(Path(release_env["CORP_TEST_GH_STATE"]).read_text())
+    assert state["release"]["draft"] is False
+    assert len(state["files"]) == 4
+    assert git(remote, "rev-parse", f"refs/tags/{state['release']['tag_name']}") == published
+    assert sum(call[:2] == ["release", "create"] for call in state["calls"]) == 1
+
+
+def test_release_refuses_to_move_existing_tag_to_another_package(
+    publication_project: tuple[Path, Path, str], release_env: dict[str, str]
+) -> None:
+    project, remote, source = publication_project
+    index = json.loads((project / "minishop-plugin.json").read_text())
+    tag = f"v{index['version']}"
+    git(project, "push", "origin", f"{source}:refs/tags/{tag}")
+    result = publish(project, source, release=True, extra_env=release_env)
+    assert result.returncode != 0
+    assert "already exists with different package files" in result.stderr
+    assert git(remote, "rev-parse", f"refs/tags/{tag}") == source
+    assert json.loads(Path(release_env["CORP_TEST_GH_STATE"]).read_text())["calls"] == []
+
+
+@pytest.mark.parametrize("change", ["tamper", "remove", "add"])
+def test_release_refuses_to_modify_existing_published_assets(
+    publication_project: tuple[Path, Path, str], release_env: dict[str, str], change: str
+) -> None:
+    project, remote, source = publication_project
+    first = publish(project, source, release=True, extra_env=release_env)
+    assert first.returncode == 0, first.stderr
+    published = git(remote, "rev-parse", "refs/heads/main")
+    state_file = Path(release_env["CORP_TEST_GH_STATE"])
+    state = json.loads(state_file.read_text())
+    if change == "tamper":
+        state["files"]["SHA256SUMS"] = base64.b64encode(b"different bytes").decode()
+    elif change == "remove":
+        del state["files"]["SHA256SUMS"]
+    else:
+        state["files"]["unexpected.txt"] = base64.b64encode(b"unexpected file").decode()
+    state["calls"] = []
+    state_file.write_text(json.dumps(state))
+    repeated = publish(project, published, release=True, extra_env=release_env)
+    assert repeated.returncode != 0
+    after = json.loads(state_file.read_text())
+    assert after["files"] == state["files"]
+    assert after["release"] == state["release"]
+    assert all(
+        call[:2] not in (["release", "upload"], ["release", "edit"]) for call in after["calls"]
+    )
+    assert git(remote, "rev-parse", "refs/heads/main") == published
+
+
+def test_release_requires_notes_before_any_publication(
+    publication_project: tuple[Path, Path, str], release_env: dict[str, str]
+) -> None:
+    project, remote, source = publication_project
+    for notes in (project / "docs/releases").glob("*.md"):
+        notes.unlink()
+    result = publish(project, source, release=True, extra_env=release_env)
+    assert result.returncode != 0
+    assert "Missing release notes" in result.stderr
+    assert git(remote, "rev-parse", "refs/heads/main") == source
+    assert git(remote, "tag", "--list") == ""
+
+
+def test_release_skips_stale_source_without_creating_a_tag_or_release(
+    publication_project: tuple[Path, Path, str], release_env: dict[str, str]
+) -> None:
+    project, remote, source = publication_project
+    git(project, "commit", "--allow-empty", "-m", "Newer source")
+    newer = git(project, "rev-parse", "HEAD")
+    git(project, "push", "origin", "HEAD:refs/heads/main")
+    git(project, "checkout", "--detach", source)
+    result = publish(project, source, release=True, extra_env=release_env)
+    assert result.returncode == 0, result.stderr
+    assert "Branch has moved" in result.stdout
+    assert git(remote, "rev-parse", "refs/heads/main") == newer
+    assert git(remote, "tag", "--list") == ""
+    assert json.loads(Path(release_env["CORP_TEST_GH_STATE"]).read_text())["calls"] == []

@@ -95,6 +95,17 @@ def version() -> str:
     ]
     if declared != [value]:
         raise ValueError("pyproject.toml and plugin __version__ differ")
+    frontend = json_object(ROOT / "package.json")
+    lock = json_object(ROOT / "package-lock.json")
+    packages = lock.get("packages")
+    root_package = packages.get("") if isinstance(packages, dict) else None
+    if (
+        frontend.get("version") != value
+        or lock.get("version") != value
+        or not isinstance(root_package, dict)
+        or root_package.get("version") != value
+    ):
+        raise ValueError("Python and npm package versions differ")
     return value
 
 

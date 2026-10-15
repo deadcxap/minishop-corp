@@ -9,6 +9,8 @@ function setup(context) {
   const window = new Window({ url: "https://fixture.invalid" });
   for (const key of ["document", "HTMLElement", "HTMLInputElement"]) globalThis[key] = key === "document" ? window.document : window[key];
   const target = document.createElement("main"); document.body.append(target);
+  const clipboard = [], clipboardApi = { writeText: async (value) => { clipboard.push(value); } };
+  context.mock.getter(globalThis, "navigator", () => ({ clipboard: clipboardApi }));
   document.cookie = "rw_webapp_csrf=synthetic-csrf";
   const api = fixture();
   const signals = [];
@@ -21,7 +23,7 @@ function setup(context) {
   const view = admin.mountView("corporate-contracts", target, { currentLang: "en" });
   context.after(() => { admin.unmountView(view); window.happyDOM.abort(); });
   const click = async (text, root = target) => {
-    const node = [...root.querySelectorAll("button")].find((button) => button.textContent === text && !button.closest("[hidden]"));
+    const node = [...root.querySelectorAll("button")].find((button) => (button.getAttribute("aria-label") ?? button.textContent) === text && !button.closest("[hidden]"));
     assert.ok(node, `Button not found: ${text}`); node.click(); await flush();
   };
   const fill = (name, value) => {
@@ -30,7 +32,8 @@ function setup(context) {
   };
   const submit = async () => { const form = target.querySelector(".corp-panel:not([hidden]) form"); form.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })); await flush(); };
   const open = async () => { await flush(); await click(api.contracts[0].name); };
-  return { api, target, view, click, fill, submit, open, signals };
+  const copy = async (root = target, key = "code") => { await click(key === "code" ? "Copy code" : "Copy link", root); return clipboard.at(-1); };
+  return { copy, clipboardApi, api, target, view, click, fill, submit, open, signals };
 }
 
 test("editor preserves draft on host updates and sends UTC with a stable create ID after network loss", async (context) => {
@@ -86,26 +89,26 @@ test("reloading after manager deletion clears the stale account selection", asyn
 });
 
 test("invitation retries preserve UUID and recover the same code after a lost response", async (context) => {
-  const { api, target, click, open } = setup(context); await open(); await click("Invitations");
+  const { api, target, click, copy, open } = setup(context); await open(); await click("Invitations");
   api.loseNextWrite = true;
   const form = target.querySelector('.corp-panel:not([hidden]) form');
   form.dispatchEvent(new document.defaultView.Event("submit", { bubbles: true, cancelable: true })); await flush();
   await click("Retry the same request");
   assert.equal(api.invitations.length, 1);
   const writes = api.calls.filter((row) => row.method === "POST"); assert.equal(writes.length, 2); assert.equal(writes[0].body.id, writes[1].body.id);
-  assert.equal(target.querySelector('[name="code"]').value, api.invitations[0].code);
-  await click('Refresh'); assert.equal(target.querySelector('[name="code"]').value, api.invitations[0].code);
+  assert.equal(await copy(), api.invitations[0].code);
+  await click('Refresh'); assert.equal(await copy(), api.invitations[0].code);
 });
 
 test("reusable code has an explicit limit and rotating it preserves members", async (context) => {
-  const { api, target, click, fill, submit, open } = setup(context); await open(); await click("Invitations");
+  const { api, target, click, copy, fill, submit, open } = setup(context); await open(); await click("Invitations");
   fill("kind", "reusable"); fill("use_limit", "7"); await submit();
-  assert.equal(api.invitations[0].use_limit, 7); assert.ok(target.querySelector('[name="code"]').value.startsWith("CORP-"));
+  assert.equal(api.invitations[0].use_limit, 7); assert.ok((await copy()).startsWith("CORP-"));
   await click("Rotate code"); await click("Confirm", target.querySelector("dialog"));
   assert.equal(api.invitations.length, 2); assert.equal(api.invitations[1].use_limit, 7); assert.ok(api.invitations[0].revoked_at);
   assert.equal(api.members.length, 2);
   await click("Back to subscriptions"); await open(); await click("Invitations");
-  assert.deepEqual([...target.querySelectorAll('[name="code"]')].map(el => el.value).sort(), api.invitations.map(row => row.code).sort());
+  for (const row of api.invitations) assert.equal(await copy(target.querySelector(`[data-invitation="${row.id}"]`)), row.code);
   assert.ok(!target.textContent.includes('Hide code'));
 });
 
@@ -149,12 +152,12 @@ test("expired contracts retain member management but do not offer new codes", as
 });
 
 test("rotation preserves the visible list and retries recover the new code without minting another", async (context) => {
-  const { api, target, click, fill, submit, open } = setup(context); await open(); await click("Invitations");
-  fill("kind", "reusable"); await submit(); assert.ok(target.querySelector('[name="code"]'));
+  const { api, target, click, copy, fill, submit, open } = setup(context); await open(); await click("Invitations");
+  fill("kind", "reusable"); await submit(); assert.ok(target.querySelector('button[aria-label="Copy code"]'));
   api.loseNextWrite = true; await click("Rotate code"); await click("Confirm", target.querySelector("dialog"));
   assert.match(target.textContent, /request may have completed/i); assert.ok(api.invitations[0].revoked_at);
   await click("Retry the same request"); assert.equal(api.invitations.length, 2);
-  assert.ok([...target.querySelectorAll('[name="code"]')].some(el => el.value === api.invitations[1].code));
+  assert.equal(await copy(), api.invitations[1].code);
 });
 
 test("legacy invitations explain the missing plaintext without revoking the working code", async (context) => {
@@ -164,6 +167,25 @@ test("legacy invitations explain the missing plaintext without revoking the work
   await open(); await click('Invitations');
   assert.match(target.textContent, /only its hash is stored/); assert.equal(api.invitations[0].revoked_at, null);
   assert.equal(target.querySelector('[name="code"]'), null); assert.ok(api.calls.every(c => c.method === 'GET'));
+});
+
+test("invitation table copies the selected row and exposes a selectable fallback when the clipboard is denied", async (context) => {
+  const { api, target, copy, clipboardApi, click, submit, open } = setup(context);
+  await open(); await click("Invitations"); await submit(); await submit();
+  const row = api.invitations[0], group = () => target.querySelector(`[data-invitation="${row.id}"]`);
+  assert.equal(await copy(group()), row.code);
+  assert.equal(await copy(group(), "link"), row.link);
+  assert.ok(group().querySelector("time").dateTime.endsWith("Z"));
+  assert.doesNotMatch(group().querySelector("time").textContent, /UTC|\d:\d/);
+  clipboardApi.writeText = async () => { throw new Error("Clipboard denied"); };
+  await click("Copy link", group());
+  const field = group().querySelector('[name="copy_value"]');
+  assert.equal(field.value, row.link); assert.equal(field.readOnly, true);
+  assert.equal(document.activeElement, field); assert.equal(field.selectionEnd, row.link.length);
+  assert.match(group().textContent, /copy it manually/);
+  await click("Close", group()); assert.equal(target.querySelector('[name="copy_value"]'), null);
+  assert.equal(document.activeElement.dataset.focus, `copy-link-${row.id}`);
+  assert.equal(api.calls.filter(call => call.method !== "GET").length, 2);
 });
 
 test("read failures use translated messages and a retry without leaking a response body", async (context) => {
@@ -274,8 +296,8 @@ test("drafts are not restored for another administrator or after explicit discar
 });
 
 test("invitation secrets never enter the form draft, and revoked permissions clear it", async (context) => {
-  const { api, target, click, submit, open } = setup(context); await open(); await click("Invitations"); await submit();
-  const secret = target.querySelector('[name="code"]').value;
+  const { api, target, click, copy, submit, open } = setup(context); await open(); await click("Invitations"); await submit();
+  const secret = await copy();
   assert.ok(!document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1").includes(secret));
   await click("Back to subscriptions"); api.failList = true; await click("Refresh");
   assert.equal(document.defaultView.sessionStorage.getItem("minishop-corp.admin-draft.v1"), null);
@@ -344,9 +366,9 @@ test("lookup misses and API errors expose the response diagnostic ID", async (co
 });
 
 test('deleting a used invitation confirms, keeps members and retries a lost response', async (t) => {
-  const { api, target, click, submit, open } = setup(t); await open(); await click('Invitations');
+  const { api, target, click, copy, submit, open } = setup(t); await open(); await click('Invitations');
   await submit(); api.invitations[0].used_count = 1; await click('Refresh');
-  const code = target.querySelector('[name="code"]').value;
+  const code = await copy();
   await click('Delete code'); await click('Cancel', target.querySelector('dialog')); assert.equal(api.invitations.length, 1);
   api.loseNextWrite = true; await click('Delete code'); await click('Confirm', target.querySelector('dialog'));
   await click('Retry the same request'); assert.equal(api.invitations.length, 0); assert.equal(api.members.length, 2);

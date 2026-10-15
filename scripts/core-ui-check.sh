@@ -35,4 +35,4 @@ docker compose -f dev/compose.yaml exec -T backend python /corp-dev/core_ui_sess
 docker run --rm --user "$CORP_UID:$CORP_GID" --network minishop-corp-dev_default \
   --mount "type=bind,src=$CORP_ROOT,dst=/workspace" --workdir /workspace \
   --env TMPDIR=/workspace/.local/tmp --env CORP_CORE_URL=http://backend:8081 \
-  "$browser_image" node tests/browser/core-ui.mjs
+  "$browser_image" bash -c 'node tests/browser/core-ui.mjs && node tests/browser/broadcasts.mjs'

@@ -1,13 +1,15 @@
 import { translate } from "./i18n";
 import { ApiError, requestId, type ApiClient } from "./api";
-import { Panel, button, confirm, date, el, field, input, select } from "./ui";
-import { invitationCode } from "./invitation-code";
+import { Panel, button, calendarDate, confirm, el, field, iconButton, input, refreshButton, select } from "./ui";
+import { icon } from "./icons";
+import { invitationCopy, type InvitationSecret } from "./invitation-code";
 import { invitation, issued, list, type Invitation } from "../admin/data";
 
 export class InvitationsPanel extends Panel {
   rows: Invitation[] = []; after: string | null = null; loaded = false;
   kind = "single"; limit = "10";
   editing: string | null = null; editLimit = "";
+  private copying: { id: string; key: InvitationSecret } | null = null;
   constructor(language: string, private current: () => { id: string; ends_at: string }, private scope: "admin" | "manager" = "admin", client?: (signal: AbortSignal) => ApiClient) {
     super(language, client); void this.run(() => this.load());
   }
@@ -45,7 +47,9 @@ export class InvitationsPanel extends Panel {
       this.rows = this.rows.map((value) => value.id === saved.id ? saved : value); this.editing = null;
       this.notice = "admin_minishop_corp_invitation_updated";
     }, true);
+    if (this.editing === null) this.focusEdit(row.id);
   }
+  private focusEdit(id: string): void { this.root.querySelector<HTMLElement>(`[data-focus="edit_limit-${id}"]`)?.focus(); }
   async remove(row: Invitation): Promise<void> {
     if (!await confirm(this.root, this.t("delete_invitation"), this.t("delete_invitation_hint"), this.language, this.controller.signal)) return;
     await this.run(async () => {
@@ -55,14 +59,17 @@ export class InvitationsPanel extends Panel {
     }, true);
   }
   override failed(error: unknown): void {
-    if (error instanceof ApiError && [401, 403, 404].includes(error.status)) this.rows = [];
+    if (error instanceof ApiError && [401, 403, 404].includes(error.status)) { this.rows = []; this.copying = null; this.editing = null; }
   }
   render(): void {
+    const scrollLeft = this.root.querySelector(".corp-table-scroll")?.scrollLeft ?? 0;
     this.paint((body) => {
       const current = this.current(), expired = Date.parse(current.ends_at) <= Date.now();
-      const actions = el("div", undefined, "corp-actions");
-      actions.append(button(this.t("refresh"), () => { void this.run(() => this.load()); })); body.append(actions);
-      if (expired) body.append(el("p", this.t("expired_codes"), "corp-notice"));
+      const refresh = refreshButton(this.t("refresh"), () => { void this.run(() => this.load()); }, this.busy);
+      if (expired) {
+        const heading = el("div", undefined, "corp-panel-heading"); heading.append(el("h3", this.t("invitations")), refresh);
+        body.append(heading, el("p", this.t("expired_codes"), "corp-notice"));
+      }
       else {
         const form = el("form", undefined, "corp-inline-form");
         const kind = select("kind", this.kind, [["single", this.t("single")], ["reusable", this.t("reusable")]], (value) => { this.kind = value; this.render(); });
@@ -72,51 +79,97 @@ export class InvitationsPanel extends Panel {
           limit.min = "1"; limit.max = "2147483647"; limit.step = "1"; limit.required = true;
           form.append(field(this.t("use_limit"), limit));
         }
-        const generate = el("button", this.t("generate"), "corp-button corp-primary"); generate.type = "submit"; form.append(generate);
+        const generate = el("button", this.t("generate"), "corp-button corp-primary"); generate.type = "submit"; form.append(generate, refresh);
         form.addEventListener("submit", (event) => { event.preventDefault(); if (form.reportValidity()) void this.issue(); }); body.append(form);
       }
       if (!this.loaded) body.append(el("p", translate(this.language, "wa_minishop_corp_loading")));
       else if (!this.rows.length) body.append(el("p", this.t("empty_invitations"), "corp-empty"));
-      const rows = el("div", undefined, "corp-stack");
+      if (!this.rows.length) return;
+      const scroll = el("div", undefined, "corp-table-scroll");
+      scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", this.t("invitations"));
+      scroll.dataset.focus = "invitations-table";
+      const table = el("table", undefined, "corp-invitations");
+      table.append(el("caption", this.t("invitations"), "corp-sr-only"));
+      const head = el("thead"), headings = el("tr");
+      for (const key of ["invitation_type", "issued_at", "usage_limit", "copy", "actions"] as const) {
+        const cell = el("th", this.t(key)); cell.scope = "col"; headings.append(cell);
+      }
+      head.append(headings); table.append(head);
       for (const row of this.rows) {
-        const card = el("article", undefined, "corp-card"); card.dataset.invitation = row.id;
+        const group = el("tbody"); group.dataset.invitation = row.id;
+        const line = el("tr");
         const status = row.revoked_at ? "revoked" : expired ? "expired" : row.used_count >= row.use_limit ? "exhausted"
           : row.used_count + row.reserved_count >= row.use_limit ? "capacity_reserved" : "active";
-        const heading = el("div", undefined, "corp-heading"); heading.append(el("h3", this.t(row.kind)), el("span", this.t(status), "corp-pill"));
-        card.append(heading, el("p", `${this.t("issued_at")}: ${date(row.created_at, this.language)}`),
-          el("p", `${this.t("used")}: ${row.used_count} / ${row.use_limit} · ${this.t("reserved")}: ${row.reserved_count}`));
-        card.append(invitationCode(this, row));
-        const tools = el("div", undefined, "corp-actions");
+        group.dataset.status = status;
+        const kind = el("td"), symbol = el("span", undefined, "corp-code-kind");
+        symbol.title = `${this.t(row.kind)} · ${this.t(status)}`;
+        symbol.setAttribute("role", "img"); symbol.setAttribute("aria-label", symbol.title); symbol.tabIndex = 0;
+        symbol.append(icon(row.kind === "single" ? "ticket" : "repeat")); kind.append(symbol);
+        const created = el("td"), stamp = el("time", calendarDate(row.created_at, this.language)); stamp.dateTime = row.created_at; created.append(stamp);
+        const usage = el("td", undefined, "corp-invitation-usage");
+        usage.append(el("span", `${row.used_count} / ${row.use_limit}`, "corp-usage-count"));
+        if (row.reserved_count > 0) {
+          const reserved = el("small", `+${row.reserved_count}`, "corp-reserved-count");
+          reserved.title = `${this.t("reserved")}: ${row.reserved_count}`;
+          reserved.setAttribute("aria-label", reserved.title); usage.append(reserved);
+        }
+        if (status !== "active") usage.append(el("small", this.t(status), "corp-invitation-status"));
+        const copies = el("td");
+        copies.append(invitationCopy(this, row, (key) => {
+          this.copying = { id: row.id, key }; this.render();
+          const field = this.root.querySelector<HTMLInputElement>('[name="copy_value"]'); field?.focus(); field?.select();
+        }));
+        const actions = el("td"), tools = el("div", undefined, "corp-row-actions");
+        const action = (label: Parameters<Panel["t"]>[0], name: Parameters<typeof iconButton>[1], run: () => void, style = ""): HTMLButtonElement => {
+          const node = iconButton(this.t(label), name, run, `corp-ghost ${style}`);
+          node.dataset.focus = `${label}-${row.id}`; return node;
+        };
         if (!row.revoked_at) {
           if (row.kind === "reusable" && !expired) {
-            tools.append(button(this.t("rotate"), () => { void this.issue(row); }), button(this.t("edit_limit"), () => {
+            tools.append(action("rotate", "refresh", () => { void this.issue(row); }), action("edit_limit", "edit", () => {
               this.editing = row.id; this.editLimit = String(row.use_limit); this.render();
+              this.root.querySelector<HTMLInputElement>('[name="edit_use_limit"]')?.focus();
             }));
           }
-          if (this.scope === "admin") tools.append(button(this.t("revoke"), () => { void this.revoke(row); }, "corp-danger"));
+          if (this.scope === "admin") tools.append(action("revoke", "ban", () => { void this.revoke(row); }, "corp-danger"));
         }
         if (this.scope === "admin") {
-          const remove = button(this.t("delete_invitation"), () => { void this.remove(row); }, "corp-danger");
+          const remove = action("delete_invitation", "trash", () => { void this.remove(row); }, "corp-danger");
           remove.disabled = row.reserved_count > 0;
-          if (remove.disabled) card.append(el("small", translate(this.language, "minishop_corp_invitation_busy")));
+          if (remove.disabled) remove.title = translate(this.language, "minishop_corp_invitation_busy");
           tools.append(remove);
         }
-        card.append(tools);
+        actions.append(tools); line.append(kind, created, usage, copies, actions); group.append(line);
+        const detail = el("td"); detail.colSpan = 5;
         if (this.editing === row.id && !row.revoked_at && !expired) {
           const form = el("form", undefined, "corp-inline-form");
           const limit = input("edit_use_limit", this.editLimit, (value) => { this.editLimit = value; }, "number");
           limit.min = String(Math.max(1, row.used_count + row.reserved_count)); limit.max = "2147483647"; limit.step = "1"; limit.required = true;
           form.append(field(this.t("use_limit"), limit, this.t("edit_limit_hint")));
           const save = el("button", this.t("save"), "corp-button corp-primary"); save.type = "submit"; form.append(save,
-            button(this.t("cancel"), () => { this.editing = null; this.render(); }));
+            button(this.t("cancel"), () => { this.editing = null; this.render(); this.focusEdit(row.id); }));
           form.addEventListener("submit", (event) => { event.preventDefault(); if (form.reportValidity()) void this.saveLimit(row); });
-          card.append(form);
+          detail.append(form);
         }
-        rows.append(card);
+        if (this.copying?.id === row.id) {
+          const key = this.copying.key, value = row[key];
+          if (value) {
+            const fallback = el("div", undefined, "corp-copy-fallback");
+            const text = input("copy_value", value, () => {}); text.readOnly = true; text.autocomplete = "off"; text.spellcheck = false;
+            text.addEventListener("focus", () => text.select());
+            const close = (): void => { this.copying = null; this.render(); this.root.querySelector<HTMLElement>(`[data-focus="copy-${key}-${row.id}"]`)?.focus(); };
+            text.addEventListener("keydown", (event) => { if (event.key === "Escape") close(); });
+            fallback.append(field(this.t(key), text, this.t("copy_failed")), iconButton(this.t("close"), "close", close, "corp-ghost"));
+            detail.append(fallback);
+          }
+        }
+        if (detail.hasChildNodes()) { const details = el("tr", undefined, "corp-invitation-detail"); details.append(detail); group.append(details); }
+        table.append(group);
       }
-      body.append(rows);
+      scroll.append(table); body.append(scroll);
       if (this.after) body.append(button(this.t("load_more"), () => { void this.run(() => this.load(this.after ?? undefined)); }));
     });
+    const scroll = this.root.querySelector(".corp-table-scroll"); if (scroll) scroll.scrollLeft = scrollLeft;
   }
-  override destroy(): void { this.rows = []; super.destroy(); }
+  override destroy(): void { this.rows = []; this.copying = null; super.destroy(); }
 }

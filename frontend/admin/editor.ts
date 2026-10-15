@@ -1,6 +1,6 @@
 import { ApiError, requestId } from "../shared/api";
 import { translate, type AdminKey } from "../shared/i18n";
-import { Panel, button, confirm, date, el, field, input, person, select } from "../shared/ui";
+import { Panel, button, confirm, date, el, field, input, person, refreshButton, select } from "../shared/ui";
 import { account, contract, list, sameTerms, squad, tariff, terms,
   type Account, type Contract, type Squad, type Tariff, type Terms } from "./data";
 import { addPeriod, calendarDay, endOfDay, expiryDay } from "./calendar";
@@ -112,7 +112,11 @@ export class Editor extends Panel {
   }
   render(): void {
     this.paint((body) => {
-      if (this.original) body.append(button(this.t("reload_saved"), () => { void this.reload(); }));
+      if (this.original) {
+        const heading = el("div", undefined, "corp-panel-heading");
+        heading.append(el("h3", this.t("terms")), refreshButton(this.t("reload_saved"), () => { void this.reload(); }, this.busy));
+        body.append(heading);
+      }
       if (!this.loaded) {
         body.append(el("p", translate(this.language, "wa_minishop_corp_loading")));
         if (this.error) body.append(button(this.t("retry_load"), () => { void this.run(() => this.load()); }));
@@ -127,36 +131,40 @@ export class Editor extends Panel {
       const end = input("ends_at", this.end, (v) => { this.end = v; this.endTouched = true; }, "date"); end.required = true;
       end.max = "9999-12-30";
       const dates = el("div", undefined, "corp-wide corp-stack");
-      dates.append(field(this.t("ends_at"), end, this.t("date_hint").replace("{timezone}", Intl.DateTimeFormat().resolvedOptions().timeZone)));
+      const dateRow = el("div", undefined, "corp-date-row"); dateRow.append(field(this.t("ends_at"), end));
       const additions = el("div", undefined, "corp-actions corp-date-actions");
       for (const [label, days, months] of periods) additions.append(button(this.t(label), () => {
         try { this.end = addPeriod(this.end || calendarDay(), days, months); this.endTouched = true; this.error = null; }
         catch { this.error = new ApiError("admin_minishop_corp_invalid_date", 400); }
         this.render();
       }));
-      dates.append(additions);
+      dateRow.append(additions);
+      dates.append(dateRow, el("small", this.t("date_hint").replace("{timezone}", Intl.DateTimeFormat().resolvedOptions().timeZone)));
       if (this.original && !this.endTouched && Date.parse(endOfDay(this.end)) !== Date.parse(this.original.ends_at)) {
         dates.append(el("small", `${this.t("saved_expiry")}: ${date(this.original.ends_at, this.language)}`));
       }
       form.append(field(this.t("name"), name), field(this.t("tariff"), plan), dates);
       if (!this.tariffs.length) form.append(el("p", this.t("no_tariffs"), "corp-alert"));
-      const squadBox = el("div", undefined, "corp-wide");
+      const squadBox = el("div", undefined, "corp-stack corp-settings-field");
       const squadInput = input("squad", this.squadId, (v) => { this.squadId = v.trim().toLowerCase(); this.verified = null; });
-      squadBox.append(field(this.t("squad"), squadInput, this.t("squad_hint")), button(this.t("verify_squad"), () => {
+      const squadRow = el("div", undefined, "corp-input-action");
+      squadRow.append(field(this.t("squad"), squadInput), button(this.t("verify_squad"), () => {
         if (this.squadId) void this.run(async () => { this.verified = squad((await this.api.request(`/options/squad?uuid=${encodeURIComponent(this.squadId)}`)).squad); });
       }));
+      squadBox.append(squadRow, el("small", this.t("squad_hint")));
       if (this.verified?.uuid === this.squadId) squadBox.append(el("p", `${this.t("squad_verified")}: ${this.verified.name}`, "corp-notice"));
-      const managers = el("div", undefined, "corp-wide corp-stack");
-      if (this.managerId === null && !this.query.trim()) managers.append(el("p", this.t("manager_missing"), "corp-footnote"));
+      const managers = el("div", undefined, "corp-stack corp-settings-field");
       const search = input("manager", this.query, (v) => {
         this.query = v; this.managerId = null; this.selected = null; this.candidate = null; this.searched = false; this.searchDiagnostic = null; this.render();
       }); search.maxLength = 320; search.placeholder = this.t("account_query"); search.autocomplete = "off";
       search.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); void this.run(() => this.search()); } });
-      managers.append(field(this.t("manager"), search, this.t("manager_hint")));
-      const find = button(this.t("search"), () => { void this.run(() => this.search()); }); find.disabled = !this.query.trim(); managers.append(find);
+      const find = button(this.t("search"), () => { void this.run(() => this.search()); }); find.disabled = !this.query.trim();
+      const managerRow = el("div", undefined, "corp-input-action"); managerRow.append(field(this.t("manager"), search), find);
+      managers.append(managerRow, el("small", this.t("manager_hint")));
+      if (this.managerId === null && !this.query.trim()) managers.append(el("p", this.t("manager_missing"), "corp-footnote"));
       if (this.managerId !== null || this.query) managers.append(button(this.t("clear_manager"), () => {
         this.managerId = null; this.query = ""; this.selected = null; this.candidate = null; this.searched = false; this.render();
-      }));
+      }, "corp-ghost"));
       if (this.candidate) {
         const candidate = this.candidate;
         const result = el("div", undefined, "corp-card");
@@ -169,9 +177,10 @@ export class Editor extends Panel {
       }
       if (this.managerId !== null) managers.append(el("p", `${this.t("manager_selected")}: ${this.selected ? person(this.selected) : ""} · ${this.selected?.minishop_id ?? "#" + this.managerId}`, "corp-notice"));
       const save = el("button", this.t("save"), "corp-button corp-primary"); save.type = "submit";
-      form.append(squadBox, managers, save);
+      const footer = el("div", undefined, "corp-form-footer corp-wide"); footer.append(save, el("p", this.t("conditions_notice"), "corp-footnote"));
+      form.append(squadBox, managers, footer);
       form.addEventListener("submit", (event) => { event.preventDefault(); if (form.reportValidity()) void this.submit(); });
-      body.append(form, el("p", this.t("conditions_notice"), "corp-footnote"));
+      body.append(form);
     });
   }
   async reload(): Promise<void> {

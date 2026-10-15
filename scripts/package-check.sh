@@ -22,5 +22,5 @@ cleanup() {
 }
 trap cleanup EXIT
 "${compose[@]}" up -d --build backend worker
-"${compose[@]}" exec -T backend python /corp-dev/package_lifecycle.py
+"${compose[@]}" exec -T -e PYTHONUNBUFFERED=1 backend python /corp-dev/package_lifecycle.py
 echo "Package lifecycle evidence: ${target#"$CORP_ROOT/"}"

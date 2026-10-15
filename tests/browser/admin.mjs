@@ -46,7 +46,9 @@ export async function adminCases(browser) {
     // Keyboard navigation activates the next registered tab and loads its content.
     await tab("terms").focus(); await page.keyboard.press("ArrowRight"); await ready();
     assert.equal(await tab("members").getAttribute("aria-selected"), "true");
-    await page.locator(".corp-member img").waitFor(); await snap("members");
+    await page.getByRole("table", { name: t("members"), exact: true }).locator("img").waitFor(); await snap("members");
+    assert.equal(await page.locator('.corp-member .corp-pill').count(), 0);
+    assert.equal(await button("exclude").first().getAttribute("title"), t("exclude"));
     assert.equal(await page.locator(".corp-member script").count(), 0);
     assert.match(await page.locator(".corp-member").last().innerText(), language === "ru" ? /Нет данных/ : /No data/);
     await button("make_manager").first().click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
@@ -68,6 +70,18 @@ export async function adminCases(browser) {
     await page.locator('[name="kind"]').selectOption("reusable"); await page.locator('[name="use_limit"]').fill("9");
     await write(button("generate")); await ready(); await snap("invitations");
     assert.equal(api.invitations[1].use_limit, 9);
+    const invitation = page.locator(`[data-invitation="${api.invitations[1].id}"]`);
+    assert.equal(await page.getByRole("table", { name: t("invitations") }).count(), 1);
+    assert.doesNotMatch(await invitation.locator("time").innerText(), /UTC|\d:\d/);
+    assert.equal(await button("copy_code", invitation).getAttribute("title"), t("copy_code"));
+    // Denied clipboard permission must still allow manual copying, including on a narrow table.
+    await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } }));
+    await button("copy_link", invitation).click();
+    const fallback = invitation.locator('[name="copy_value"]');
+    await fallback.waitFor(); assert.equal(await fallback.inputValue(), api.invitations[1].link);
+    assert.equal(await fallback.evaluate(node => document.activeElement === node), true);
+    await page.keyboard.press("Escape"); assert.equal(await fallback.count(), 0);
+    await fit();
     await button("rotate").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.ok(api.invitations[1].revoked_at); assert.equal(api.invitations[2].use_limit, 9);
     const removedCode = api.invitations[0].id;

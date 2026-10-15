@@ -4,7 +4,8 @@ from uuid import UUID
 
 import pytest
 from db.dal import user_dal
-from db.dal.user_merge_dal import delete_user_and_relations, merge_users
+from db.dal.user_dal import delete_user_and_relations
+from db.dal.user_merge_dal import merge_users
 from minishop_corp.storage.schema import Contract, Invitation, Membership, Revision
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
@@ -48,14 +49,14 @@ async def test_native_migration_chain_rolled_back_then_replayed(engine: AsyncEng
             await connection.scalar(
                 text("SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'")
             )
-            == 10
+            == 11
         )
         names = (
             await connection.scalars(
                 text("SELECT tablename FROM pg_tables WHERE tablename LIKE 'ext_minishop_corp_%'")
             )
         ).all()
-        assert len(names) == 9
+        assert len(names) == 10
 
 
 async def test_constraints_and_historical_departure(host: Host) -> None:

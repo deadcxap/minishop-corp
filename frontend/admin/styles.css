@@ -1,0 +1,28 @@
+/* The audience picker stays a single disclosure row until it is needed. */
+.minishop-corp.corp-broadcast { padding: 8px 14px; }
+.minishop-corp.corp-broadcast .corp-content { gap: 0; }
+.minishop-corp.corp-broadcast .corp-broadcast-toggle { display: flex; gap: 10px; align-items: center; width: 100%; min-height: 34px; padding: 0; border: 0; background: transparent; color: var(--corp-text); font: inherit; font-weight: 500; text-align: start; cursor: pointer; }
+.minishop-corp.corp-broadcast .corp-broadcast-toggle > span:first-of-type { flex: 1; }
+.minishop-corp.corp-broadcast .corp-broadcast-toggle > .corp-icon:first-child { color: var(--corp-muted); }
+.minishop-corp.corp-broadcast .corp-broadcast-toggle[aria-expanded="true"] > .corp-icon:last-child { transform: rotate(90deg); }
+.minishop-corp.corp-broadcast .corp-broadcast-count { padding: 1px 6px; border-radius: 5px; background: var(--corp-surface-2); color: var(--corp-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.minishop-corp.corp-broadcast .corp-broadcast-selection { display: grid; gap: 10px; padding: 10px 0 4px; }
+.minishop-corp.corp-broadcast .corp-broadcast-selection[hidden] { display: none; }
+.minishop-corp.corp-broadcast .corp-broadcast-hint { font-size: 12px; }
+.minishop-corp.corp-broadcast .corp-broadcast-options { display: grid; grid-template-columns: minmax(0, 1fr); max-height: 220px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; border: 1px solid var(--corp-border); border-radius: 8px; }
+.minishop-corp.corp-broadcast .corp-broadcast-option { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 10px; cursor: pointer; }
+.minishop-corp.corp-broadcast .corp-broadcast-option + .corp-broadcast-option { border-top: 1px solid var(--corp-border); }
+.minishop-corp.corp-broadcast .corp-broadcast-option:hover { background: var(--surface-hover, #8080800a); }
+.minishop-corp.corp-broadcast .corp-broadcast-option:has(:checked) { background: color-mix(in srgb, var(--accent, #2563eb) 7%, transparent); }
+.minishop-corp.corp-broadcast .corp-broadcast-option:has(:disabled) { opacity: .55; cursor: not-allowed; }
+.minishop-corp.corp-broadcast .corp-broadcast-option > span { flex: 1; min-width: 0; }
+.minishop-corp.corp-broadcast .corp-broadcast-option > small { font-variant-numeric: tabular-nums; }
+.minishop-corp.corp-broadcast input[type="checkbox"] { appearance: auto; accent-color: var(--accent, #2563eb); flex: 0 0 16px; width: 16px; height: 16px; min-height: 0; padding: 0; margin: 0; }
+.minishop-corp.corp-broadcast .corp-broadcast-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.minishop-corp.corp-broadcast .corp-broadcast-footer p { font-size: 12px; }
+.minishop-corp.corp-broadcast .corp-broadcast-footer .corp-button { font-size: 12px; }
+.minishop-corp.corp-broadcast .corp-broadcast-selection > .corp-button { justify-self: start; min-height: 28px; padding: 4px 8px; font-size: 12px; }
+.minishop-corp.corp-broadcast .corp-broadcast-details { font-size: 12px; color: var(--corp-muted); }
+.minishop-corp.corp-broadcast .corp-broadcast-details summary { width: fit-content; cursor: pointer; }
+.minishop-corp.corp-broadcast .corp-broadcast-details p { margin-top: 6px; }
+.minishop-corp.corp-broadcast .corp-broadcast-details summary:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }

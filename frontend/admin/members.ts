@@ -1,7 +1,7 @@
 import { requestId } from "../shared/api";
 import { MembersPanel } from "../shared/member-panel";
 import type { CorporateMember } from "../shared/members";
-import { button, confirm, date, el, field, input, person } from "../shared/ui";
+import { button, confirm, date, el, field, input, person, refreshButton } from "../shared/ui";
 import { account, contract, list, operation, type Account, type Contract } from "./data";
 
 export class AdminMembersPanel extends MembersPanel {
@@ -30,14 +30,14 @@ export class AdminMembersPanel extends MembersPanel {
     }, true);
   }
   protected override renderActions(body: HTMLElement): void {
-    super.renderActions(body);
     const form = el("form", undefined, "corp-inline-form");
     const search = input("member_query", this.query, (value) => {
       this.query = value; this.candidate = null; this.searched = false; this.render();
     });
     search.maxLength = 320; search.required = true; search.autocomplete = "off"; search.placeholder = this.t("account_query");
     form.append(field(this.t("add_member"), search));
-    const find = el("button", this.t("search"), "corp-button"); find.type = "submit"; find.disabled = !this.query.trim(); form.append(find);
+    const find = el("button", this.t("search"), "corp-button"); find.type = "submit"; find.disabled = !this.query.trim();
+    form.append(find, refreshButton(this.t("refresh"), () => { void this.run(() => this.load()); }, this.busy));
     form.addEventListener("submit", (event) => { event.preventDefault(); if (form.reportValidity()) void this.run(() => this.search()); });
     body.append(form);
     if (this.candidate) {

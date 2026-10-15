@@ -1,6 +1,7 @@
 import { translate } from "../shared/i18n";
 import { ApiError, number } from "../shared/api";
-import { Panel, button, confirm, date, el, person } from "../shared/ui";
+import { Panel, button, confirm, date, el, iconButton, person, refreshButton } from "../shared/ui";
+import { icon } from "../shared/icons";
 import type { CorporateMember } from "../shared/members";
 import { contract, list, type Contract } from "./data";
 import { Editor } from "./editor";
@@ -10,6 +11,8 @@ import { SynchronizationPanel } from "./synchronization";
 import { DraftStore, type EditorDraft, type Tab } from "./draft";
 import "../shared/styles.css";
 import "../shared/controls.css";
+import "../shared/workspace.css";
+import "./styles.css";
 
 const tabs: Tab[] = ["terms", "members", "invitations", "sync"];
 
@@ -21,7 +24,7 @@ export class AdminView extends Panel {
   restoredEditor: EditorDraft | null = null;
   initialized = false;
   constructor(target: HTMLElement, language: string) {
-    super(language); this.root.className = "minishop-corp corp-admin"; target.append(this.root);
+    super(language); this.root.className = "minishop-corp corp-workspace corp-admin"; target.append(this.root);
     for (const event of ["input", "change", "click"]) this.root.addEventListener(event, () => this.persist(), { signal: this.controller.signal });
     void this.run(() => this.initialize());
   }
@@ -137,31 +140,37 @@ export class AdminView extends Panel {
   render(): void {
     this.paint((body) => {
       const heading = el("div", undefined, "corp-heading");
-      const title = el("div"); title.append(el("h2", this.mode === "list" ? this.t("title") : this.mode === "new" ? this.t("new_contract") : this.current?.name));
+      const title = el("div", undefined, "corp-heading-title"); title.append(el("h2", this.mode === "list" ? this.t("title") : this.mode === "new" ? this.t("new_contract") : this.current?.name));
       heading.append(title);
       if (this.mode === "list") {
-        title.append(el("p", this.t("subtitle")));
-        heading.append(button(this.t("new_contract"), () => { void this.open(null); }, "corp-primary")); body.append(heading);
-        body.append(button(this.t("refresh"), () => { void this.run(() => this.initialized ? this.load() : this.initialize()); }));
+        const actions = el("div", undefined, "corp-actions");
+        const create = button(this.t("new_contract"), () => { void this.open(null); }, "corp-primary"); create.prepend(icon("plus"));
+        actions.append(refreshButton(this.t("refresh"), () => { void this.run(() => this.initialized ? this.load() : this.initialize()); }, this.busy), create);
+        heading.append(actions); body.append(heading);
         if (!this.loaded) body.append(el("p", translate(this.language, "wa_minishop_corp_loading")));
         else if (!this.rows.length) {
           const empty = el("p", this.t("empty_contracts"), "corp-empty"); empty.setAttribute("role", "status"); body.append(empty);
         }
+        const rows = el("div", undefined, "corp-contract-list");
         for (const row of this.rows) {
-          const card = el("article", undefined, "corp-contract corp-card"); card.dataset.contract = row.id;
+          const card = el("article", undefined, "corp-contract"); card.dataset.contract = row.id;
           const open = button(row.name, () => { void this.open(row); }, "corp-link");
-          const group = el("div"); group.append(open, el("small", row.tariff_key));
-          card.append(group, el("span", date(row.ends_at, this.language)),
-            el("span", `${this.t("members")}: ${row.member_count}`), el("span", this.t(Date.parse(row.ends_at) <= Date.now() ? "expired" : "active"), "corp-pill")); body.append(card);
+          const group = el("div", undefined, "corp-contract-name"); group.append(open, el("small", row.tariff_key));
+          const end = el("div", undefined, "corp-contract-date"); end.append(el("small", this.t("ends_at")), el("span", date(row.ends_at, this.language)));
+          const expired = Date.parse(row.ends_at) <= Date.now();
+          card.append(group, end, el("span", `${this.t("members")}: ${row.member_count}`, "corp-contract-members"),
+            el("span", this.t(expired ? "expired" : "active"), `corp-pill corp-status-${expired ? "expired" : "active"}`)); rows.append(card);
         }
+        if (this.rows.length) body.append(rows);
         if (this.after) body.append(button(this.t("load_more"), () => { void this.run(() => this.load(this.after ?? undefined)); }));
         return;
       }
-      const back = button(this.t("back"), () => { void this.back(); }); back.disabled = this.locked; heading.append(back); body.append(heading);
+      const back = iconButton(this.t("back"), "back", () => { void this.back(); }); back.disabled = this.locked; heading.prepend(back); body.append(heading);
       if (this.current) {
-        const remove = button(this.t("delete_contract"), () => { void this.removeContract(); }, "corp-danger");
+        const remove = iconButton(this.t("delete_contract"), "trash", () => { void this.removeContract(); }, "corp-danger");
         remove.disabled = this.locked; heading.append(remove);
-        const info = el("div", undefined, "corp-actions"); info.append(el("span", this.t(Date.parse(this.current.ends_at) <= Date.now() ? "expired" : "active"), "corp-pill"),
+        const expired = Date.parse(this.current.ends_at) <= Date.now();
+        const info = el("div", undefined, "corp-meta"); info.append(el("span", this.t(expired ? "expired" : "active"), `corp-pill corp-status-${expired ? "expired" : "active"}`),
           el("span", date(this.current.ends_at, this.language)), el("span", `${this.t("members")}: ${this.current.member_count}`)); body.append(info);
         const nav = el("div", undefined, "corp-tabs"); nav.setAttribute("role", "tablist"); nav.setAttribute("aria-label", this.t("title"));
         for (const tab of tabs) {
