@@ -99,7 +99,6 @@
 .minishop-corp.corp-workspace .corp-form-footer .corp-footnote { flex: 1 1 240px; }
 .minishop-corp.corp-workspace .corp-card { padding: 14px; gap: 8px; border-color: var(--corp-border); border-radius: 8px; background: transparent; }
 .minishop-corp.corp-workspace .corp-card > .corp-button { align-self: start; }
-.minishop-corp.corp-workspace .corp-member { grid-template-columns: minmax(150px, 1.4fr) minmax(90px, .8fr) minmax(80px, .6fr) auto; gap: 14px; }
 .minishop-corp.corp-workspace .corp-profile h3 { font-size: 13px; }
 .minishop-corp.corp-workspace .corp-profile :is(small, a) { font-size: 11px; }
 .minishop-corp.corp-workspace .corp-avatar, .minishop-corp.corp-workspace .corp-avatar img { width: 36px; height: 36px; }
@@ -113,16 +112,23 @@
 .minishop-corp.corp-workspace .corp-counters dd { font-size: 22px; line-height: 1.2; margin-top: 6px; }
 .minishop-corp.corp-workspace .corp-dialog { padding: 20px; border-color: var(--corp-border); background: var(--corp-surface); border-radius: 12px; }
 
-.minishop-corp .corp-member-tools { display: flex; flex-direction: column; align-items: end; justify-self: end; gap: 6px; max-width: 170px; text-align: end; }
+.minishop-corp .corp-member-tools { display: flex; flex-direction: column; align-items: end; gap: 6px; margin-inline-start: auto; max-width: 170px; text-align: end; }
 .minishop-corp .corp-row-actions { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
 .minishop-corp.corp-workspace .corp-row-actions .corp-icon-button { width: 32px; height: 32px; min-height: 32px; border-radius: 6px; }
 .minishop-corp .corp-manager-badge { display: inline-flex; color: var(--accent, #2563eb); vertical-align: middle; margin-inline-start: 5px; }
 .minishop-corp .corp-manager-badge .corp-icon { width: 14px; height: 14px; }
 .minishop-corp .corp-table-scroll { position: relative; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; border: 1px solid var(--corp-border); border-radius: 8px; }
 .minishop-corp :is(.corp-table-scroll, .corp-code-kind, .corp-copy-unavailable):focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: -2px; }
-.minishop-corp .corp-invitations { width: 100%; border-collapse: collapse; font-size: 12px; text-align: start; }
-.minishop-corp .corp-invitations :is(th, td) { padding: 10px 12px; text-align: start; vertical-align: middle; }
-.minishop-corp .corp-invitations th { background: var(--corp-surface-2); color: var(--corp-muted); font-size: 11px; font-weight: 500; }
+.minishop-corp :is(.corp-members, .corp-invitations) { width: 100%; border-collapse: collapse; font-size: 12px; text-align: start; }
+.minishop-corp :is(.corp-members, .corp-invitations) :is(th, td) { padding: 10px 12px; text-align: start; vertical-align: middle; }
+.minishop-corp :is(.corp-members, .corp-invitations) th { background: var(--corp-surface-2); color: var(--corp-muted); font-size: 11px; font-weight: 500; }
+.minishop-corp .corp-members { min-width: 560px; }
+.minishop-corp .corp-members th { white-space: nowrap; }
+.minishop-corp .corp-members tbody tr { border-top: 1px solid var(--corp-border); }
+.minishop-corp .corp-members tbody tr:hover { background: var(--surface-hover, #80808006); }
+.minishop-corp .corp-members :is(th, td):first-child { width: 40%; min-width: 180px; max-width: 340px; }
+.minishop-corp .corp-members :is(th, td):last-child { width: 1%; text-align: end; }
+.minishop-corp .corp-members .corp-metric { flex-wrap: nowrap; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .minishop-corp .corp-invitations tbody { border-top: 1px solid var(--corp-border); }
 .minishop-corp .corp-invitations tbody:hover { background: var(--surface-hover, #80808006); }
 .minishop-corp .corp-invitations :is(th, td):first-child { width: 40px; }
@@ -142,8 +148,6 @@
 .minishop-corp .corp-copy-fallback input { font-family: ui-monospace, monospace; font-size: 12px; }
 
 @media (max-width: 900px) {
-  .minishop-corp.corp-workspace .corp-member { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
-  .minishop-corp.corp-workspace .corp-member .corp-identity { grid-column: 1 / -1; }
   .minishop-corp.corp-workspace .corp-contract { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
   .minishop-corp.corp-workspace .corp-contract-name { grid-column: 1; grid-row: 1; }
   .minishop-corp.corp-workspace .corp-contract > .corp-pill { grid-column: 2; grid-row: 1; justify-self: end; }
@@ -160,13 +164,8 @@
   .minishop-corp.corp-workspace .corp-date-actions .corp-button { padding-inline: 7px; }
   .minishop-corp.corp-workspace .corp-tabs { align-self: stretch; }
   .minishop-corp.corp-workspace .corp-tabs .corp-button { flex: 1 0 auto; }
-  .minishop-corp.corp-workspace .corp-member { gap: 10px; }
-  .minishop-corp .corp-invitations :is(th, td) { padding: 8px; }
+  .minishop-corp :is(.corp-members, .corp-invitations) :is(th, td) { padding: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .minishop-corp.corp-workspace .corp-button { transition: none; }
-}
-@container (max-width: 640px) {
-  .minishop-corp.corp-workspace .corp-member { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 10px; }
-  .minishop-corp.corp-workspace .corp-member .corp-identity { grid-column: 1 / -1; }
 }

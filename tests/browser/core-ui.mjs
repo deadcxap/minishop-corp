@@ -33,6 +33,11 @@ try {
           assert.equal(await page.locator('a[href*="/extensions/minishop-corp/"]').count(), 0);
           await page.goto(base + '/settings');
           await page.locator('.corp-settings-tile[aria-busy="false"]').waitFor();
+          // The host mounts the module without awaiting its stylesheet links.
+          await page.waitForFunction(() => {
+            const styles = [...document.querySelectorAll('link[rel="stylesheet"]')].filter(link => link.href.includes('/api/extensions/assets/'));
+            return styles.length > 0 && styles.every(link => link.sheet !== null);
+          });
           assert.equal(await page.locator('.minishop-corp button').count(), 1);
           assert.equal(await page.locator('.minishop-corp input').count(), 0);
           assert.equal(await page.locator('a[href*="/extensions/minishop-corp/"]').count(), 0);

@@ -9,8 +9,9 @@
 .minishop-corp.corp-broadcast .corp-broadcast-selection { display: grid; gap: 10px; padding: 10px 0 4px; }
 .minishop-corp.corp-broadcast .corp-broadcast-selection[hidden] { display: none; }
 .minishop-corp.corp-broadcast .corp-broadcast-hint { font-size: 12px; }
-.minishop-corp.corp-broadcast .corp-broadcast-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 220px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; border: 1px solid var(--corp-border); border-radius: 8px; }
-.minishop-corp.corp-broadcast .corp-broadcast-option { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 10px; cursor: pointer; border-radius: 6px; }
+.minishop-corp.corp-broadcast .corp-broadcast-options { display: grid; grid-template-columns: minmax(0, 1fr); max-height: 220px; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; border: 1px solid var(--corp-border); border-radius: 8px; }
+.minishop-corp.corp-broadcast .corp-broadcast-option { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 10px; cursor: pointer; }
+.minishop-corp.corp-broadcast .corp-broadcast-option + .corp-broadcast-option { border-top: 1px solid var(--corp-border); }
 .minishop-corp.corp-broadcast .corp-broadcast-option:hover { background: var(--surface-hover, #8080800a); }
 .minishop-corp.corp-broadcast .corp-broadcast-option:has(:checked) { background: color-mix(in srgb, var(--accent, #2563eb) 7%, transparent); }
 .minishop-corp.corp-broadcast .corp-broadcast-option:has(:disabled) { opacity: .55; cursor: not-allowed; }
@@ -25,6 +26,3 @@
 .minishop-corp.corp-broadcast .corp-broadcast-details summary { width: fit-content; cursor: pointer; }
 .minishop-corp.corp-broadcast .corp-broadcast-details p { margin-top: 6px; }
 .minishop-corp.corp-broadcast .corp-broadcast-details summary:focus-visible { outline: 2px solid var(--accent, #2563eb); outline-offset: 2px; }
-@media (max-width: 640px) {
-  .minishop-corp.corp-broadcast .corp-broadcast-options { grid-template-columns: minmax(0, 1fr); }
-}

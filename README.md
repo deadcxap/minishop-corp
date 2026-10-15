@@ -19,7 +19,7 @@
 
 ## Совместимость
 
-Текущая версия — **0.1.12**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
+Текущая версия — **0.1.13**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
 frontend host API 1 и возможности Minishop `user_ui: 1`, `ui_composition: 1`.
 Установка проверяет эти возможности без привязки к конкретному commit ядра.
 Проверенная база — **Minishop 3.8.1** из [dev/minishop.json](dev/minishop.json);
@@ -54,7 +54,7 @@ Minishop найдёт и скачает подписанный пакет; ос�
 [![Список корпоративных подписок в админке Minishop](docs/screenshots/admin-subscriptions.png)](docs/screenshots/admin-subscriptions.png)
 
 <details>
-<summary>Условия подписки, участники, приглашения и применение изменений</summary>
+<summary>Условия подписки, участники, приглашения, применение изменений и рассылка</summary>
 
 **Условия подписки** — тариф, общий срок и внешний сквад.
 
@@ -71,6 +71,10 @@ Minishop найдёт и скачает подписанный пакет; ос�
 **Применение условий** — состояние операций и общая сверка участников.
 
 [![Состояние применения условий корпоративной подписки](docs/screenshots/admin-reconciliation.png)](docs/screenshots/admin-reconciliation.png)
+
+**Рассылка** — выбор нескольких корпоративных подписок в штатном редакторе Minishop.
+
+[![Выбор корпоративных подписок для рассылки](docs/screenshots/admin-broadcast.png)](docs/screenshots/admin-broadcast.png)
 
 </details>
 

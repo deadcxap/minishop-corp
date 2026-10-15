@@ -46,7 +46,7 @@ export async function adminCases(browser) {
     // Keyboard navigation activates the next registered tab and loads its content.
     await tab("terms").focus(); await page.keyboard.press("ArrowRight"); await ready();
     assert.equal(await tab("members").getAttribute("aria-selected"), "true");
-    await page.locator(".corp-member img").waitFor(); await snap("members");
+    await page.getByRole("table", { name: t("members"), exact: true }).locator("img").waitFor(); await snap("members");
     assert.equal(await page.locator('.corp-member .corp-pill').count(), 0);
     assert.equal(await button("exclude").first().getAttribute("title"), t("exclude"));
     assert.equal(await page.locator(".corp-member script").count(), 0);

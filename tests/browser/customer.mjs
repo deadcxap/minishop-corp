@@ -65,7 +65,7 @@ export async function customerCases(browser) {
     api.manager = true; api.seedCode(); api.base.contracts[0].ends_at = "2030-10-01T00:00:00Z";
     await page.goto(`${base.replace("view=corporate-card", "view=corporate-manager")}`); await ready();
     await button(api.base.contracts[0].name).click();
-    await page.locator(".corp-member img").waitFor(); await snap("manager-members");
+    await page.getByRole("table", { name: a("members"), exact: true }).locator("img").waitFor(); await snap("manager-members");
     assert.equal(await button(a("exclude")).first().getAttribute("title"), a("exclude"));
     await button(a("exclude")).first().click(); await write(button(a("confirm"), page.getByRole("dialog")));
     assert.equal(api.base.members.length, 2); assert.equal(api.base.members[0].state, "leaving");

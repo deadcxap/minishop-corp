@@ -95,8 +95,15 @@ export class MembersPanel extends Panel {
       this.renderActions(body);
       if (!this.loaded) body.append(el("p", translate(this.language, "wa_minishop_corp_loading")));
       else if (!this.rows.length) body.append(el("p", this.t("empty_members"), "corp-empty"));
+      const table = el("table", undefined, "corp-members"); table.setAttribute("aria-label", this.t("members"));
+      const head = el("thead"), headings = el("tr"), rows = el("tbody");
+      for (const key of ["participant", "traffic", "devices", "actions"] as const) {
+        const heading = el("th", this.t(key)); heading.scope = "col"; headings.append(heading);
+      }
+      head.append(headings); table.append(head, rows);
       for (const row of this.rows) {
-        const card = el("article", undefined, "corp-member corp-card"); card.dataset.member = row.id;
+        const entry = el("tr", undefined, "corp-member"); entry.dataset.member = row.id;
+        const participant = el("td");
         const identity = el("div", undefined, "corp-identity");
         const photo = this.avatars.get(row.id);
         const name = person(row.profile);
@@ -131,10 +138,11 @@ export class MembersPanel extends Panel {
         }
         const id = el("small", row.profile.minishop_id, "corp-account-id"); id.title = row.profile.minishop_id;
         profile.append(id);
-        identity.append(imageBox, profile); card.append(identity);
-        for (const [label, used, max, bytes] of [["traffic", row.statistics.traffic_used_bytes, row.statistics.traffic_limit_bytes, true],
-          ["devices", row.statistics.device_count, row.statistics.device_limit, false]] as const) {
-          const metric = el("div", undefined, "corp-metric"); metric.append(el("small", this.t(label)), this.metric(used, bytes), el("span", "/"), this.metric(max, bytes, true)); card.append(metric);
+        identity.append(imageBox, profile); participant.append(identity); entry.append(participant);
+        for (const [used, max, bytes] of [[row.statistics.traffic_used_bytes, row.statistics.traffic_limit_bytes, true],
+          [row.statistics.device_count, row.statistics.device_limit, false]] as const) {
+          const cell = el("td"), metric = el("div", undefined, "corp-metric");
+          metric.append(this.metric(used, bytes), el("span", "/"), this.metric(max, bytes, true)); cell.append(metric); entry.append(cell);
         }
         const tools = el("div", undefined, "corp-member-tools"), actions = el("div", undefined, "corp-row-actions");
         if (row.state !== "active") tools.append(el("span", this.t(`state_${row.state}`), "corp-pill"));
@@ -150,7 +158,13 @@ export class MembersPanel extends Panel {
         }
         const remove = iconButton(this.t("exclude"), "userRemove", () => { void this.exclude(row); }, "corp-ghost corp-danger");
         remove.dataset.focus = `exclude-${row.id}`; remove.disabled = row.state === "leaving";
-        actions.append(remove); tools.append(actions); card.append(tools); body.append(card);
+        const controls = el("td");
+        actions.append(remove); tools.append(actions); controls.append(tools); entry.append(controls); rows.append(entry);
+      }
+      if (this.rows.length) {
+        const scroll = el("div", undefined, "corp-table-scroll");
+        scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", this.t("members"));
+        scroll.append(table); body.append(scroll);
       }
       if (this.after) body.append(button(this.t("load_more"), () => { void this.run(() => this.load(this.after ?? undefined)); }));
     });
