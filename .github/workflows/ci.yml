@@ -8,7 +8,8 @@ permissions:
   contents: read
 concurrency:
   group: plugin-package-${{ github.ref }}
-  cancel-in-progress: true
+  # Let main finish publishing its commit, tag and release before the next run.
+  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 jobs:
   package:
     runs-on: ubuntu-24.04
@@ -66,7 +67,7 @@ jobs:
           from pathlib import Path
 
           index = json.loads(Path("minishop-plugin.json").read_text())
-          print("The default branch publishes the index and ZIP for installation by repository URL.")
+          print("The default branch publishes the package, version tag and GitHub Release.")
           print("For a manual installation, download this run's artifact and extract it.")
           print(f"Upload **{index['artifact']}** in Minishop → Plugins.")
           print(f"\nPlugin version: `{index['version']}`")
@@ -77,18 +78,22 @@ jobs:
     needs: package
     if: github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: actions/download-artifact@v4
         with:
           name: minishop-corp-${{ github.sha }}
-      - name: Publish index and signed ZIP in one commit
+      - name: Publish package, version tag and GitHub Release
         env:
           CORP_PUBLISH_BRANCH: ${{ github.ref_name }}
           CORP_PUBLISH_SHA: ${{ github.sha }}
-        run: bash scripts/publish-package.sh
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publish-package.py --release

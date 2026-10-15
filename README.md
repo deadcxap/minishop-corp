@@ -19,7 +19,7 @@
 
 ## Совместимость
 
-Версия исходников — **0.1.13**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
+Версия исходников — **1.0.0**. Нужны Linux x86_64, Python 3.12, Plugin API 1,
 frontend host API 1 и возможности Minishop `user_ui: 1`, `ui_composition: 1`.
 Установка проверяет эти возможности без привязки к конкретному commit ядра.
 Проверенная база — **Minishop 3.8.1** из [dev/minishop.json](dev/minishop.json);
@@ -129,6 +129,7 @@ Minishop найдёт и скачает подписанный пакет; ос�
 
 ## Документация
 
+- [Что входит в 1.0.0](docs/releases/1.0.0.md).
 - [Установка и эксплуатация](docs/installation.md).
 - [Администратор магазина](docs/admin-ui.md), [участник и управляющий](docs/customer-ui.md).
 - [Совместимость и ограничения](docs/minishop-compatibility.md), [диагностика](docs/logging.md).
