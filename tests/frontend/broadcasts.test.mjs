@@ -28,7 +28,7 @@ function setup(context, count = 2) {
   });
   const view = admin.mountView("corporate-broadcast-audience", target, {currentLang: "en", routePrefix: "/prefix"});
   context.after(() => { admin.unmountView(view); window.happyDOM.abort(); });
-  const click = async text => { const node = [...target.querySelectorAll("button")].find(node => node.textContent === text); assert.ok(node, text); node.click(); await flush(); };
+  const click = async text => { const node = [...target.querySelectorAll("button")].find(node => (node.getAttribute("aria-label") ?? node.textContent) === text); assert.ok(node, text); node.click(); await flush(); };
   const check = id => { const node = target.querySelector(`input[value="${api.contracts[id].id}"]`); node.checked = !node.checked; node.dispatchEvent(new window.Event("change")); };
   const submit = async () => { target.querySelector("form").dispatchEvent(new window.Event("submit", {bubbles: true, cancelable: true})); await flush(); };
   return {target, api, view, requests, click, check, submit, loseResponse: () => { fail = true; }};
@@ -39,7 +39,12 @@ test("corporate slot prepares a union without sending and opens a fresh native e
   assert.equal(requests.length, 0);
   await click("Choose subscriptions");
   assert.equal(target.querySelectorAll("script").length, 0);
-  check(0); check(1); await submit();
+  check(0); check(1);
+  await click("Hide selection");
+  assert.ok(target.querySelector("#corp-broadcast-selection").hidden);
+  await click("Choose subscriptions");
+  assert.equal(target.querySelectorAll("input:checked").length, 2);
+  await submit();
   const writes = requests.filter(row => row.options.method === "POST");
   assert.equal(writes.length, 1); assert.match(writes[0].path, /\/broadcast-audiences$/);
   assert.deepEqual(JSON.parse(writes[0].options.body).contract_ids, api.contracts.map(row => row.id));
@@ -48,7 +53,7 @@ test("corporate slot prepares a union without sending and opens a fresh native e
   assert.equal(new URL(link.href).searchParams.get("broadcast_target"), "minishop-corp.selection:" + "1".repeat(32));
   assert.equal(link.target, "_blank"); assert.match(link.rel, /noopener/);
   admin.updateView(view, {currentLang: "ru"});
-  assert.match(target.textContent, /Выбрано подписок: 2/);
+  assert.match(target.textContent, /Выбрано: 2/);
   check(0); assert.equal(target.querySelector("a"), null);
   assert.equal(requests.filter(row => row.path === "/api/admin/broadcast").length, 0);
 });
@@ -71,5 +76,5 @@ test("paginated selections persist and stop at 100 subscriptions", async context
   for (let index = 1; index < 100; index++) check(index);
   await click("Load more");
   assert.equal(target.querySelectorAll("input:disabled").length, 1);
-  assert.match(target.textContent, /Subscriptions selected: 100/);
+  assert.match(target.textContent, /Selected: 100/);
 });

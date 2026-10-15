@@ -1,6 +1,6 @@
 import { translate } from "./i18n";
 import { ApiError, requestId, type ApiClient } from "./api";
-import { Panel, button, confirm, date, el, field, input, select } from "./ui";
+import { Panel, button, confirm, date, el, field, input, refreshButton, select } from "./ui";
 import { invitationCode } from "./invitation-code";
 import { invitation, issued, list, type Invitation } from "../admin/data";
 
@@ -60,9 +60,11 @@ export class InvitationsPanel extends Panel {
   render(): void {
     this.paint((body) => {
       const current = this.current(), expired = Date.parse(current.ends_at) <= Date.now();
-      const actions = el("div", undefined, "corp-actions");
-      actions.append(button(this.t("refresh"), () => { void this.run(() => this.load()); })); body.append(actions);
-      if (expired) body.append(el("p", this.t("expired_codes"), "corp-notice"));
+      const refresh = refreshButton(this.t("refresh"), () => { void this.run(() => this.load()); }, this.busy);
+      if (expired) {
+        const heading = el("div", undefined, "corp-panel-heading"); heading.append(el("h3", this.t("invitations")), refresh);
+        body.append(heading, el("p", this.t("expired_codes"), "corp-notice"));
+      }
       else {
         const form = el("form", undefined, "corp-inline-form");
         const kind = select("kind", this.kind, [["single", this.t("single")], ["reusable", this.t("reusable")]], (value) => { this.kind = value; this.render(); });
@@ -72,7 +74,7 @@ export class InvitationsPanel extends Panel {
           limit.min = "1"; limit.max = "2147483647"; limit.step = "1"; limit.required = true;
           form.append(field(this.t("use_limit"), limit));
         }
-        const generate = el("button", this.t("generate"), "corp-button corp-primary"); generate.type = "submit"; form.append(generate);
+        const generate = el("button", this.t("generate"), "corp-button corp-primary"); generate.type = "submit"; form.append(generate, refresh);
         form.addEventListener("submit", (event) => { event.preventDefault(); if (form.reportValidity()) void this.issue(); }); body.append(form);
       }
       if (!this.loaded) body.append(el("p", translate(this.language, "wa_minishop_corp_loading")));

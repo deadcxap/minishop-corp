@@ -2,7 +2,7 @@ import { ApiError } from "../shared/api";
 import type { CustomerProps } from "../shared/host";
 import { customerText, type CustomerKey } from "../shared/i18n";
 import { MembersPanel } from "../shared/member-panel";
-import { Panel, button, date, el } from "../shared/ui";
+import { Panel, button, date, el, refreshButton } from "../shared/ui";
 import { InvitationsPanel } from "../shared/invitations-panel";
 import { CustomerApi } from "./api";
 import { list, summary, type Summary } from "./data";
@@ -52,7 +52,7 @@ export class ManagerView extends Panel {
     this.paint((body) => {
       body.append(el("h2", this.c("manager_title")), el("p", this.c("manager_hint")));
       if (!this.current) {
-        body.append(button(this.t("refresh"), () => { void this.run(() => this.load()); }));
+        body.append(refreshButton(this.t("refresh"), () => { void this.run(() => this.load()); }, this.busy));
         if (!this.loaded) body.append(el("p", this.c("loading")));
         else if (!this.rows.length) body.append(el("p", this.c("manager_empty"), "corp-empty"));
         for (const row of this.rows) {

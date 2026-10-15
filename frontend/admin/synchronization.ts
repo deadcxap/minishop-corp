@@ -1,5 +1,5 @@
 import { errorText, translate } from "../shared/i18n";
-import { Panel, button, date, el } from "../shared/ui";
+import { Panel, button, date, el, refreshButton } from "../shared/ui";
 import { list, synchronization, syncOperation, type Contract, type Sync, type SyncOperation } from "./data";
 
 export class SynchronizationPanel extends Panel {
@@ -19,7 +19,9 @@ export class SynchronizationPanel extends Panel {
   }
   render(): void {
     this.paint((body) => {
-      body.append(button(this.t("refresh"), () => { void this.run(() => this.load()); }), el("p", this.t("sync_hint")), el("small", this.t("auto_refresh")));
+      const heading = el("div", undefined, "corp-panel-heading");
+      const description = el("div"); description.append(el("p", this.t("sync_hint")), el("small", this.t("auto_refresh")));
+      heading.append(description, refreshButton(this.t("refresh"), () => { void this.run(() => this.load()); }, this.busy)); body.append(heading);
       if (!this.progress) { body.append(el("p", translate(this.language, "wa_minishop_corp_loading"))); return; }
       const progress = this.progress;
       const counters = el("dl", undefined, "corp-counters");

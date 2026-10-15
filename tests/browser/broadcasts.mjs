@@ -19,8 +19,8 @@ try {
     const headers = { "X-CSRF-Token": csrf, Origin: base };
     const choices = await (await context.request.get(base + "/api/admin/minishop-corp/options/tariffs")).json();
     const tariff = choices.tariffs[0]?.key; assert.ok(tariff);
-    const ids = [randomUUID(), randomUUID()];
-    for (const [index, id] of ids.entries()) {
+    const allIds = Array.from({length: 12}, () => randomUUID()), ids = allIds.slice(-2);
+    for (const [index, id] of allIds.entries()) {
       const reply = await context.request.post(base + "/api/admin/minishop-corp/contracts", { headers, data: {
         id, name: `Broadcast ${language} ${width} ${index + 1}`, tariff_key: tariff, manager_user_id: null,
         ends_at: new Date(Date.now() + 86400000 * 30).toISOString(),
@@ -31,7 +31,11 @@ try {
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`${base}/admin/broadcast?lang=${language}`);
     const slot = page.locator(".corp-broadcast");
-    await slot.getByRole("button", { name: language === "ru" ? "Выбрать подписки" : "Choose subscriptions", exact: true }).click();
+    const choose = () => slot.getByRole("button", { name: language === "ru" ? "Выбрать подписки" : "Choose subscriptions", exact: true });
+    await choose().waitFor();
+    assert.ok((await slot.boundingBox()).height <= 64, "The collapsed picker must remain a single compact row");
+    await page.screenshot({path: `.local/screenshots/broadcast-collapsed-${language}-${width}.png`});
+    await choose().click();
     await page.locator('.corp-broadcast[aria-busy="false"] form').waitFor();
     for (const id of ids) {
       // Other full-shell scenarios may have created more than one page of subscriptions.
@@ -39,8 +43,17 @@ try {
         await slot.getByRole("button", { name: language === "ru" ? "Загрузить ещё" : "Load more", exact: true }).click();
         await page.locator('.corp-broadcast[aria-busy="false"]').waitFor();
       }
-      await slot.locator(`input[value="${id}"]`).check();
+      const checkbox = slot.locator(`input[value="${id}"]`);
+      await checkbox.scrollIntoViewIfNeeded();
+      const scroll = await slot.locator(".corp-broadcast-options").evaluate(node => node.scrollTop);
+      await checkbox.check();
+      assert.ok(Math.abs(await slot.locator(".corp-broadcast-options").evaluate(node => node.scrollTop) - scroll) <= 1, "Selection must not reset the scroll position");
     }
+    assert.ok((await slot.locator(".corp-broadcast-options").boundingBox()).height <= 222);
+    await slot.getByRole("button", { name: language === "ru" ? "Скрыть выбор" : "Hide selection", exact: true }).click();
+    assert.equal(await slot.locator("input:visible").count(), 0);
+    await choose().focus(); await page.keyboard.press("Enter");
+    assert.equal(await slot.locator("input:checked").count(), 2);
     await slot.getByRole("button", { name: language === "ru" ? "Подготовить аудиторию" : "Prepare audience", exact: true }).click();
     const link = slot.getByRole("link", { name: language === "ru" ? "Открыть редактор рассылки" : "Open broadcast editor", exact: true });
     await link.waitFor();
@@ -76,6 +89,7 @@ try {
     }});
     assert.equal(unavailable.status(), 400); assert.equal((await unavailable.json()).error, "invalid_audience");
     assert.equal((await context.request.delete(base + `/api/admin/minishop-corp/contracts/${ids[1]}`, {headers})).status(), 200);
+    for (const id of allIds.slice(0, -2)) assert.equal((await context.request.delete(base + `/api/admin/minishop-corp/contracts/${id}`, {headers})).status(), 200);
     assert.deepEqual(errors, []); await context.close(); passed++;
   }
   console.log(`PASS: ${passed} native corporate broadcast scenarios (RU/EN, mobile/desktop)`);

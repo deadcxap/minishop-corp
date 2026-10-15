@@ -1,5 +1,6 @@
 import { AdminApi, ApiError, type ApiClient } from "./api";
 import { translate, type LocaleKey, adminText, type AdminKey, errorText } from "./i18n";
+import { icon, type IconName } from "./icons";
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -10,6 +11,15 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string,
 export function button(text: string, action: () => void, style = ""): HTMLButtonElement {
   const node = el("button", text, `corp-button ${style}`);
   node.type = "button"; node.addEventListener("click", action); return node;
+}
+export function iconButton(label: string, name: IconName, action: () => void, style = ""): HTMLButtonElement {
+  const node = button("", action, `corp-icon-button ${style}`);
+  node.append(icon(name), el("span", label, "corp-sr-only"));
+  node.setAttribute("aria-label", label); node.title = label; node.dataset.focus = `icon-${name}`;
+  return node;
+}
+export function refreshButton(label: string, action: () => void, busy = false): HTMLButtonElement {
+  return iconButton(label, "refresh", action, `corp-refresh${busy ? " corp-spinning" : ""}`);
 }
 export function field(label: string, input: HTMLElement, hint?: string): HTMLLabelElement {
   const node = el("label", undefined, "corp-field");

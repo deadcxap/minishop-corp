@@ -1,7 +1,7 @@
 import { ApiError, requestId, object, number, type ApiClient } from "./api";
 import { translate } from "./i18n";
 import type { CorporateMember, MemberAvatar, Statistic } from "./members";
-import { Panel, button, confirm, el, person } from "./ui";
+import { Panel, button, confirm, el, person, refreshButton } from "./ui";
 import { list, nullable, string } from "./api";
 import { avatar, member, operation } from "./members-data";
 
@@ -25,8 +25,8 @@ export class MembersPanel extends Panel {
     }
   }
   protected renderActions(body: HTMLElement): void {
-    const actions = el("div", undefined, "corp-actions");
-    actions.append(button(this.t("refresh"), () => { void this.run(() => this.load()); })); body.append(actions);
+    const actions = el("div", undefined, "corp-panel-heading");
+    actions.append(el("h3", this.t("members")), refreshButton(this.t("refresh"), () => { void this.run(() => this.load()); }, this.busy)); body.append(actions);
   }
   get path(): string { return `/${this.scope === "admin" ? "contracts" : "managed-contracts"}/${this.current().id}/members`; }
   async load(after?: string): Promise<void> {

@@ -1,5 +1,6 @@
 import { ApiError, string } from "../shared/api";
-import { Panel, button, el, field } from "../shared/ui";
+import { Panel, button, el, refreshButton } from "../shared/ui";
+import { icon } from "../shared/icons";
 import { contract, list, type Contract } from "./data";
 
 export function broadcastHref(routePrefix: string, target?: string): string {
@@ -42,17 +43,26 @@ export class BroadcastAudienceView extends Panel {
     }, true);
   }
   render(): void {
+    const scroll = this.root.querySelector(".corp-broadcast-options")?.scrollTop ?? 0;
     this.paint((body) => {
-      body.append(el("h3", this.t("broadcast_title")), el("p", this.t("broadcast_hint")));
-      const toggle = button(this.t(this.expanded ? "broadcast_hide" : "broadcast_choose"), () => {
+      const toggle = button("", () => {
         this.expanded = !this.expanded;
         if (this.expanded && !this.loaded) void this.run(() => this.load()); else this.render();
       });
-      toggle.setAttribute("aria-expanded", String(this.expanded)); body.append(toggle);
+      toggle.className = "corp-broadcast-toggle"; toggle.dataset.focus = "broadcast-toggle";
+      toggle.setAttribute("aria-label", this.t(this.expanded ? "broadcast_hide" : "broadcast_choose"));
+      toggle.setAttribute("aria-expanded", String(this.expanded)); toggle.setAttribute("aria-controls", "corp-broadcast-selection");
+      toggle.append(icon("users"), el("span", this.t("broadcast_group")));
+      if (this.selected.size) toggle.append(el("span", String(this.selected.size), "corp-broadcast-count"));
+      toggle.append(icon("chevron")); body.append(toggle);
+      const selection = el("div", undefined, "corp-broadcast-selection"); selection.id = "corp-broadcast-selection";
+      selection.hidden = !this.expanded; body.append(selection);
       if (!this.expanded) return;
-      if (!this.loaded) { body.append(button(this.t("refresh"), () => { void this.run(() => this.load()); })); return; }
-      if (!this.rows.length) { body.append(el("p", this.t("empty_contracts"), "corp-empty")); return; }
+      if (!this.loaded) { selection.append(refreshButton(this.t("refresh"), () => { void this.run(() => this.load()); }, this.busy)); return; }
+      if (!this.rows.length) { selection.append(el("p", this.t("empty_contracts"), "corp-broadcast-hint")); return; }
       const form = el("form"); form.addEventListener("submit", (event) => { event.preventDefault(); void this.prepare(); });
+      form.className = "corp-broadcast-selection"; form.id = selection.id; selection.replaceWith(form);
+      form.append(el("p", this.t("broadcast_hint"), "corp-broadcast-hint"));
       const options = el("div", undefined, "corp-broadcast-options");
       for (const row of this.rows) {
         const check = el("input"); check.type = "checkbox"; check.name = "broadcast_contract";
@@ -62,17 +72,28 @@ export class BroadcastAudienceView extends Panel {
           if (check.checked) this.selected.add(row.id); else this.selected.delete(row.id);
           this.target = null; this.render();
         });
-        options.append(field(row.name, check, `${this.t("members")}: ${row.member_count}`));
+        const option = el("label", undefined, "corp-broadcast-option");
+        const members = el("small"); members.title = `${this.t("members")}: ${row.member_count}`;
+        members.append(el("span", `${this.t("members")}: `, "corp-sr-only"), String(row.member_count));
+        option.append(check, el("span", row.name), members); options.append(option);
       }
       form.append(options);
-      if (this.after) form.append(button(this.t("load_more"), () => { void this.run(() => this.load(this.after ?? undefined)); }));
+      if (this.after) form.append(button(this.t("load_more"), () => { void this.run(() => this.load(this.after ?? undefined)); }, "corp-ghost"));
       const summary = el("p", this.t("broadcast_selected").replace("{count}", String(this.selected.size)));
-      summary.setAttribute("role", "status"); form.append(summary, el("p", this.t("broadcast_recipients_hint")));
-      const submit = el("button", this.t("broadcast_prepare"), "corp-button"); submit.type = "submit"; submit.disabled = !this.selected.size;
-      form.append(submit); body.append(form);
+      summary.setAttribute("role", "status");
+      const footer = el("div", undefined, "corp-broadcast-footer"); footer.append(summary);
       if (this.target) {
-        body.append(broadcastLink(this.t("broadcast_open"), this.routePrefix, this.target), el("p", this.t("broadcast_new_tab")));
+        const link = broadcastLink(this.t("broadcast_open"), this.routePrefix, this.target);
+        link.append(icon("external")); link.title = this.t("broadcast_new_tab"); footer.append(link);
+      } else {
+        const submit = el("button", this.t("broadcast_prepare"), "corp-button corp-primary"); submit.type = "submit"; submit.disabled = !this.selected.size;
+        footer.append(submit);
       }
+      form.append(footer);
+      if (this.target) form.append(el("small", this.t("broadcast_new_tab")));
+      const details = el("details", undefined, "corp-broadcast-details");
+      details.append(el("summary", this.t("broadcast_details")), el("p", this.t("broadcast_recipients_hint"))); form.append(details);
     });
+    const options = this.root.querySelector(".corp-broadcast-options"); if (options) options.scrollTop = scroll;
   }
 }
