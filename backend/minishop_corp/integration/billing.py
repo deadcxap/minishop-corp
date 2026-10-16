@@ -5,6 +5,8 @@ Those two bounded EXISTS reads use host ORM models here; mutations remain native
 The caller locks the native user before this check and until its transaction ends.
 """
 
+from importlib.util import find_spec
+
 from db.dal import (
     auto_renew_dal,
     payment_dal,
@@ -18,6 +20,29 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .access_types import AccessError, AccessFailure, AccessState
+
+
+async def _has_live_provider_mandate(session: AsyncSession, user_id: int) -> bool:
+    # Minishop 3.8.1 has no mandates. Only absence of this optional module is
+    # tolerated; broken imports or failed queries must not allow enrollment.
+    if find_spec("db.dal.provider_mandate_dal") is None:
+        return False
+    from db.dal.provider_mandate_dal import list_mandates
+
+    # Native 3.8.2 provider keys, independent of which providers are enabled now:
+    # disabling checkout does not revoke an existing provider-owned schedule.
+    return bool(
+        await list_mandates(
+            session,
+            providers=(
+                "cryptomus_subscription",
+                "cispay_subscription_card",
+                "cispay_subscription_sbp",
+            ),
+            user_id=user_id,
+            limit=1,
+        )
+    )
 
 
 async def require_clear_billing(session: AsyncSession, user_id: int) -> None:
@@ -35,6 +60,7 @@ async def require_clear_billing(session: AsyncSession, user_id: int) -> None:
         or await wata_subscription_dal.list_live_for_user(session, user_id)
         or await tribute_dal.get_other_active_shop_order_uuid(session, user_id=user_id)
         or await tribute_dal.get_other_active_creator_subscription_id(session, user_id=user_id)
+        or await _has_live_provider_mandate(session, user_id)
         or await session.scalar(
             select(
                 select(AutoRenewCycle.cycle_id)

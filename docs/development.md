@@ -15,10 +15,14 @@ bash scripts/check.sh
 bash scripts/integration-check.sh
 ```
 
-`fetch-minishop.sh` загружает Minishop 3.8.1 в `.local/minishop`, сверяет commit
+`fetch-minishop.sh` загружает Minishop 3.8.2 в `.local/minishop`, сверяет commit
 и не перезаписывает существующий checkout. `MINISHOP_SOURCE` допускает другой
 чистый checkout той же ревизии. Проверка `check-minishop.sh` выполняется перед
 зависимыми командами. Другие плагины для разработки не требуются.
+
+При смене закреплённой версии сохраните прежний checkout под другим именем внутри
+`.local/`, затем снова выполните `fetch-minishop.sh` и `setup.sh`. Не устанавливайте
+зависимости и не собирайте frontend непосредственно в исходниках Minishop.
 
 `setup.sh` создаёт `.venv`, устанавливает зависимости ядра, `requirements-dev.lock`,
 плагин в editable-режиме и npm-пакеты по lock-файлу. Runtime-зависимости плагина

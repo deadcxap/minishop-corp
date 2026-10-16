@@ -449,6 +449,8 @@ class AccessAdapter:
                 discover_panel_overrides=False,
             )
             await self._push(state.panel_user_uuid, fields)
+            # Native activation may consume a deferred welcome bonus. That is
+            # accepted: departure still restores only the fixed standard trial.
             result = await self.service.activate_trial_subscription(
                 session, user_id, commit=False, emit_event=False
             )

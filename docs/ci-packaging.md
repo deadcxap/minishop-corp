@@ -46,7 +46,7 @@ Actions устанавливает только зависимости сбор�
 
 ```text
 minishop-plugin.json
-packages/minishop-corp-1.0.0.zip
+packages/minishop-corp-<версия>.zip
 publisher.pub
 SHA256SUMS
 ```
@@ -85,12 +85,12 @@ Force-push не используется. Коммит через `GITHUB_TOKEN`
 
 ## Теги, GitHub Release и повторный запуск
 
-Для 1.0.0 после слияния в `main` Actions выполнит следующие шаги:
+Для каждой новой версии после push или слияния в `main` Actions выполняет следующие шаги:
 
-1. Соберёт и подпишет `packages/minishop-corp-1.0.0.zip` постоянным ключом издателя.
+1. Соберёт и подпишет `packages/minishop-corp-<версия>.zip` постоянным ключом издателя.
 2. Опубликует ZIP, индекс, `publisher.pub` и `SHA256SUMS` одним коммитом в `main`.
-3. Создаст тег `v1.0.0` на коммите, содержащем готовую поставку.
-4. Создаст черновик Release с [описанием 1.0.0](releases/1.0.0.md), загрузит четыре
+3. Создаст тег `v<версия>` на коммите, содержащем готовую поставку.
+4. Создаст черновик Release с описанием из `docs/releases/<версия>.md`, загрузит четыре
    файла и скачает их для побайтной проверки. Затем опубликует Release как Latest.
 
 Новый push в `main` не отменяет выполняющуюся публикацию. После сетевого сбоя
@@ -136,7 +136,7 @@ python scripts/build-package.py build --key-env MINISHOP_CORP_SIGNING_KEY --outp
 
 ## Ручное скачивание
 
-В **Releases → minishop-corp 1.0.0 → Assets** скачайте `minishop-corp-1.0.0.zip`
+В **Releases → minishop-corp <версия> → Assets** скачайте `minishop-corp-<версия>.zip`
 и загрузите его в Minishop. Архивы **Source code** содержат исходники и для установки
 плагина не подходят. Вложенные индекс и `SHA256SUMS` сохраняют репозиторный путь
 `packages/`: для проверки командой `sha256sum -c SHA256SUMS` положите ZIP в этот каталог.

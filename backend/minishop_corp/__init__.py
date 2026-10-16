@@ -12,7 +12,7 @@ from .integration.migrations import Migration, migrations
 from .integration.views import view_policy
 from .integration.worker import run_operations, run_reconciliation_task
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 
 class CorporatePlugin(Plugin):
