@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -150,15 +151,45 @@ def release_record(repository: str, tag: str) -> dict[str, object] | None:
     return object_value(json.loads(result)) if result else None
 
 
-def missing_assets(
-    repository: str, tag: str, package: Package, record: dict[str, object]
-) -> list[str]:
+def release_asset_names(record: dict[str, object]) -> set[str]:
     assets = record.get("assets")
     if not isinstance(assets, list):
         raise ValueError("Expected GitHub release assets")
-    names = [object_value(asset).get("name") for asset in assets]
+    names: set[str] = set()
+    for asset in assets:
+        name = object_value(asset).get("name")
+        if not isinstance(name, str) or name in names:
+            raise ValueError("Expected unique GitHub release asset names")
+        names.add(name)
+    return names
+
+
+def wait_for_release(
+    repository: str, tag: str, *, expected_assets: set[str] | None = None
+) -> dict[str, object]:
+    # GitHub's release listing can briefly lag successful create/upload requests.
+    # Retry only reads of missing state, never a mutation or a failed API request.
+    subject = "release metadata" if expected_assets is None else "uploaded assets"
+    for delay in (0, 1, 2, 4, 8):
+        if delay:
+            print(f"Waiting {delay}s for GitHub {tag} {subject}.", flush=True)
+            time.sleep(delay)
+        record = release_record(repository, tag)
+        if record is not None and (
+            expected_assets is None or expected_assets <= release_asset_names(record)
+        ):
+            return record
+    raise ValueError(
+        f"GitHub {tag}: {subject} not yet visible after 5 checks; rerun the publish job."
+    )
+
+
+def missing_assets(
+    repository: str, tag: str, package: Package, record: dict[str, object]
+) -> list[str]:
+    names = release_asset_names(record)
     expected = {Path(name).name for name in package.files}
-    if any(not isinstance(name, str) or name not in expected for name in names):
+    if not names <= expected:
         raise ValueError(f"Unexpected release assets on {tag}")
     missing = []
     for path, body in package.files.items():
@@ -203,8 +234,8 @@ def publish_release(package: Package, commit: str, repository: str, notes: Path)
             "--notes-file",
             str(notes),
         )
-        record = release_record(repository, tag)
-    if record is None or record.get("prerelease") is not False:
+        record = wait_for_release(repository, tag)
+    if record.get("prerelease") is not False:
         raise ValueError(f"Expected a stable release for {tag}")
     missing = missing_assets(repository, tag, package, record)
     if record.get("draft") is False:
@@ -214,8 +245,12 @@ def publish_release(package: Package, commit: str, repository: str, notes: Path)
     elif record.get("draft") is True:
         if missing:
             run("gh", "release", "upload", tag, "--repo", repository, *missing)
-        record = release_record(repository, tag)
-        if record is None or missing_assets(repository, tag, package, record):
+        record = wait_for_release(
+            repository, tag, expected_assets={Path(name).name for name in package.files}
+        )
+        if record.get("draft") is not True or record.get("prerelease") is not False:
+            raise ValueError(f"Draft release {tag} changed during upload; rerun the publish job")
+        if missing_assets(repository, tag, package, record):
             raise ValueError(f"Release {tag} is missing assets after upload")
         run("gh", "release", "edit", tag, "--repo", repository, "--draft=false", "--latest")
         print(f"Published release {tag}.")

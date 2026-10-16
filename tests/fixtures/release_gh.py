@@ -30,8 +30,17 @@ def main() -> None:
         ]
         fail("api")
         record = state["release"]
+        if state.get("hidden_release_reads", 0):
+            state["hidden_release_reads"] -= 1
+            save()
+            return
         if record is not None:
-            record = {**record, "assets": [{"name": name} for name in state["files"]]}
+            names = state["files"]
+            if state.get("stale_asset_reads", 0):
+                state["stale_asset_reads"] -= 1
+                names = {}
+                save()
+            record = {**record, "assets": [{"name": name} for name in names]}
         if record:
             assert args[4] == f'.[] | select(.tag_name == "{record["tag_name"]}")'
             print(json.dumps(record))
@@ -48,6 +57,7 @@ def main() -> None:
         assert "--draft" in options and "--verify-tag" in options
         notes = Path(options[options.index("--notes-file") + 1]).read_text()
         state["release"] = {"tag_name": tag, "draft": True, "prerelease": False, "body": notes}
+        state["hidden_release_reads"] = int(os.environ.get("CORP_TEST_GH_CREATE_DELAY", "0"))
         save()
         fail("create")
     elif action == "upload":
@@ -58,6 +68,8 @@ def main() -> None:
             state["files"][asset.name] = base64.b64encode(asset.read_bytes()).decode()
             save()
             fail("upload")
+        state["stale_asset_reads"] = int(os.environ.get("CORP_TEST_GH_UPLOAD_DELAY", "0"))
+        save()
     elif action == "download":
         assert options[0] == "--pattern" and options[2:] == ["--output", "-"]
         sys.stdout.buffer.write(base64.b64decode(state["files"][options[1]]))

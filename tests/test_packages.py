@@ -544,6 +544,62 @@ def test_release_resumes_after_interruption_from_original_source_checkout(
     assert sum(call[:2] == ["release", "create"] for call in state["calls"]) == 1
 
 
+@pytest.mark.parametrize("action", ["CREATE", "UPLOAD"])
+def test_release_waits_for_delayed_github_visibility(
+    publication_project: tuple[Path, Path, str], release_env: dict[str, str], action: str
+) -> None:
+    project, remote, source = publication_project
+    result = publish(
+        project,
+        source,
+        release=True,
+        extra_env={**release_env, f"CORP_TEST_GH_{action}_DELAY": "2"},
+    )
+    assert result.returncode == 0, result.stderr
+    state = json.loads(Path(release_env["CORP_TEST_GH_STATE"]).read_text())
+    assert state["release"]["draft"] is False and state["release"]["prerelease"] is False
+    assert len(state["files"]) == 4
+    assert not state.get("hidden_release_reads") and not state.get("stale_asset_reads")
+    for mutation in ("create", "upload", "edit"):
+        assert sum(call[:2] == ["release", mutation] for call in state["calls"]) == 1
+    tag = f"refs/tags/{state['release']['tag_name']}"
+    assert git(remote, "rev-parse", tag) == git(remote, "rev-parse", "refs/heads/main")
+
+
+@pytest.mark.parametrize("action", ["CREATE", "UPLOAD"])
+def test_release_visibility_timeout_preserves_draft_and_can_resume(
+    publication_project: tuple[Path, Path, str], release_env: dict[str, str], action: str
+) -> None:
+    project, remote, source = publication_project
+    failed = publish(
+        project,
+        source,
+        release=True,
+        extra_env={**release_env, f"CORP_TEST_GH_{action}_DELAY": "10"},
+    )
+    assert failed.returncode != 0
+    assert "not yet visible" in failed.stderr
+    state_file = Path(release_env["CORP_TEST_GH_STATE"])
+    state = json.loads(state_file.read_text())
+    assert state["release"]["draft"] is True
+    assert all(call[:2] != ["release", "edit"] for call in state["calls"])
+    if action == "CREATE":
+        assert state["files"] == {}
+    else:
+        assert len(state["files"]) == 4
+    published = git(remote, "rev-parse", "refs/heads/main")
+    state["hidden_release_reads"] = state["stale_asset_reads"] = 0
+    state_file.write_text(json.dumps(state))
+    resumed = publish(project, published, release=True, extra_env=release_env)
+    assert resumed.returncode == 0, resumed.stderr
+    after = json.loads(state_file.read_text())
+    assert after["release"]["draft"] is False and len(after["files"]) == 4
+    assert git(remote, "rev-parse", "refs/heads/main") == published
+    assert git(remote, "rev-parse", f"refs/tags/{after['release']['tag_name']}") == published
+    assert sum(call[:2] == ["release", "create"] for call in after["calls"]) == 1
+    assert sum(call[:2] == ["release", "upload"] for call in after["calls"]) == 1
+
+
 def test_release_refuses_to_move_existing_tag_to_another_package(
     publication_project: tuple[Path, Path, str], release_env: dict[str, str]
 ) -> None:
