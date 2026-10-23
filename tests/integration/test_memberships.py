@@ -63,10 +63,17 @@ async def invitation(
 
 async def execute(host: Host, operation_id: UUID, *, due: bool = False) -> bool:
     worker = OperationWorker(ContractHost(host.service))
+    now = datetime.now(UTC) + timedelta(days=1) if due else datetime.now(UTC)
+    operation = await host.session.get(Operation, operation_id)
+    assert operation is not None
+    if operation.state == "pending":
+        # Execute this fixture no earlier than the DB's persisted due time.
+        # Immediate claims otherwise depend on database/process clock alignment.
+        now = max(now, operation.next_attempt_at)
     lease = await worker.claim(
         host.session,
         operation_id=operation_id,
-        now=datetime.now(UTC) + timedelta(days=1) if due else None,
+        now=now,
     )
     assert lease is not None
     # A real worker commits its claim before processing. In this fixture commits

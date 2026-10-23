@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from inspect import signature
 from uuid import UUID, uuid4
 
 import pytest
@@ -288,6 +289,13 @@ async def test_native_delivery_filters_preferences_and_sends_once(host: Host, te
         queue_manager=queue,
         bot_username="synthetic_bot",
     )
+    # Core 3.8.3 requires recipients to calculate progress before delivery.
+    # The production HTTP route supplies them; keep this DAL fixture valid on 3.8.2 too.
+    initial_audience = (
+        {"user_ids": await service.resolve_user_ids(target)}
+        if "user_ids" in signature(broadcast_dal.create_broadcast).parameters
+        else {}
+    )
     item = await broadcast_dal.create_broadcast(
         host.session,
         actor_id=USER_ID,
@@ -298,7 +306,10 @@ async def test_native_delivery_filters_preferences_and_sends_once(host: Host, te
         email_subjects={},
         buttons=[{"kind": "url", "label": "Details", "url": "https://example.invalid/news"}],
         scheduled_at=datetime.now(UTC) - timedelta(seconds=1),
+        **initial_audience,
     )
+    if initial_audience:
+        assert item.recipient_count == item.total_deliveries == 1
     transport.release = asyncio.Event()
     result = await delivery.dispatch(item.broadcast_id)
     transport.release.set()
