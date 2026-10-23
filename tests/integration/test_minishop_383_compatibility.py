@@ -1,4 +1,4 @@
-"""Minishop 3.8.3 probes, including the unresolved departure/captcha contract.
+"""Minishop 3.8.3 probes, including the corporate-only captcha exemption.
 
 Redis cases require CORP_COMPAT_REDIS_URL pointing at the local stand. Older Core
 releases skip these probes; no Core service or captcha proof is replaced.
@@ -22,15 +22,18 @@ from bot.infra.redis import close_redis
 from bot.plugins.spec import WEB_SCOPE_WEBAPP, PluginContext
 from bot.services.account_roles import grant_role
 from db.dal import user_dal
+from db.models import Payment, Subscription
 from minishop_corp import plugin
 from minishop_corp.integration.access import AccessAdapter
+from minishop_corp.integration.access_types import TrialAccess
 from minishop_corp.integration.contracts import ContractHost
 from minishop_corp.membership_types import DepartMembership
 from minishop_corp.memberships import Memberships
 from minishop_corp.storage.schema import Contract, Invitation, Membership, Operation
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from .conftest import USER_ID, Host
+from .conftest import TRIAL_SQUAD, USER_ID, Host
 from .test_access import target
 from .test_contracts import authorization
 from .test_memberships import execute, invitation
@@ -43,10 +46,6 @@ pytestmark = [
         reason="These compatibility probes require Minishop 3.8.3",
     ),
 ]
-
-
-class DepartureCaptchaBlocked(AssertionError):
-    """Only this confirmed incompatibility is an expected failure."""
 
 
 @pytest_asyncio.fixture(
@@ -91,11 +90,6 @@ async def departure(host: Host, scope: Literal["self", "manager", "admin"]) -> U
 
 
 @pytest.mark.parametrize("scope", ["self", "manager", "admin"])
-@pytest.mark.xfail(
-    strict=True,
-    raises=DepartureCaptchaBlocked,
-    reason="3.8.3 captcha blocks automatic departure trial; CORP-09 is not satisfied",
-)
 async def test_departure_completes_with_captcha_enabled(
     host: Host, captcha: str, scope: Literal["self", "manager", "admin"]
 ) -> None:
@@ -104,29 +98,81 @@ async def test_departure_completes_with_captcha_enabled(
         host.session, USER_ID, commit=False, emit_event=False
     )
     assert result is not None and not result["activated"] and result["message_key"] == captcha
-    completed = await execute(host, operation_id)
+    assert await execute(host, operation_id)
     operation = await host.session.get(Operation, operation_id)
-    assert operation is not None
-    if not completed:
-        assert operation.state == "retry"
-        assert operation.error_code == "minishop_corp_panel_unconfirmed"
-        raise DepartureCaptchaBlocked(captcha, operation.state, operation.error_code)
-    assert operation.state == "succeeded"
+    assert operation is not None and operation.state == "succeeded"
+    member = await host.session.get(Membership, operation.membership_id)
+    assert member is not None and member.current_user_id is None
+    assert member.state == ("left" if scope == "self" else "excluded")
+    adapter = AccessAdapter(host.service)
+    state = await adapter.read(host.session, USER_ID)
+    assert state is not None and state.provider == "trial" and state.tariff_key is None
+    assert state.start_date == datetime.fromisoformat(str(operation.target["starts_at"]))
+    assert state.end_date == datetime.fromisoformat(str(operation.target["ends_at"]))
+    assert state.end_date - state.start_date == timedelta(days=3)
+    assert state.traffic_limit_bytes == 1024**3 and state.hwid_device_limit == 1
+    panel = host.panel.users[state.panel_user_uuid]
+    assert panel["activeInternalSquads"] == [TRIAL_SQUAD]
+    assert panel["externalSquadUuid"] is None and panel["tag"] == "TRIAL"
+    assert panel["trafficLimitBytes"] == 1024**3 and panel["hwidDeviceLimit"] == 1
+    # Retrying the same grant only verifies its fixed window; no second trial/payment.
+    assert (
+        await adapter.grant_trial(
+            host.session, USER_ID, TrialAccess(state.start_date, state.end_date)
+        )
+        == state
+    )
+    assert (
+        await host.session.scalar(
+            select(func.count()).select_from(Subscription).where(Subscription.user_id == USER_ID)
+        )
+        == 1
+    )
+    assert (
+        await host.session.scalar(
+            select(func.count()).select_from(Payment).where(Payment.user_id == USER_ID)
+        )
+        == 0
+    )
+    assert host.settings.TRIAL_CAPTCHA_ENABLED is True
+    # No shared setting or account proof was changed by the corporate exception.
+    # Both the departing user and a fresh account still need the native captcha.
+    other_user = USER_ID + 2
+    await user_dal.create_user(host.session, {"user_id": other_user})
+    for user_id in (USER_ID, other_user):
+        result = await host.service.activate_trial_subscription(
+            host.session, user_id, commit=False, emit_event=False
+        )
+        assert result is not None and not result["activated"]
+        assert result["message_key"] == captcha
 
 
-async def test_captcha_failure_recovers_same_departure_after_setting_disabled(
-    host: Host, captcha: str
+@pytest.mark.parametrize("failure", ["fail_trial_activation", "fail_after_trial_activation"])
+async def test_departure_retry_keeps_trial_window_with_captcha_enabled(
+    host: Host, captcha: str, failure: str
 ) -> None:
     operation_id = await departure(host, "self")
+    operation = await host.session.get(Operation, operation_id)
+    assert operation is not None
+    # Simulate queue delay: the native now-based trial must need a correction
+    # back to the persisted window, even if both calls run in one millisecond.
+    saved_target = dict(operation.target)
+    for key in ("starts_at", "ends_at"):
+        saved_target[key] = (
+            datetime.fromisoformat(str(saved_target[key])) - timedelta(hours=1)
+        ).isoformat()
+    operation.target = saved_target
+    await host.session.flush()
     result = await host.service.activate_trial_subscription(
         host.session, USER_ID, commit=False, emit_event=False
     )
     assert result is not None and not result["activated"] and result["message_key"] == captcha
+    setattr(host.panel, failure, True)
     assert not await execute(host, operation_id)
     operation = await host.session.get(Operation, operation_id)
     assert operation is not None and operation.state == "retry"
     assert operation.error_code == "minishop_corp_panel_unconfirmed"
-    saved_target = dict(operation.target)
+    assert operation.target == saved_target
     member = await host.session.get(Membership, operation.membership_id)
     assert member is not None and member.state == "leaving"
     state = await AccessAdapter(host.service).read(host.session, USER_ID)
@@ -134,7 +180,7 @@ async def test_captcha_failure_recovers_same_departure_after_setting_disabled(
     assert not await execute(host, operation_id, due=True)
     await host.session.refresh(operation)
     assert operation.target == saved_target and operation.state == "retry"
-    host.settings.TRIAL_CAPTCHA_ENABLED = False
+    setattr(host.panel, failure, False)
     assert await execute(host, operation_id, due=True)
     state = await AccessAdapter(host.service).read(host.session, USER_ID)
     assert state is not None and state.provider == "trial" and state.tariff_key is None
@@ -142,6 +188,47 @@ async def test_captcha_failure_recovers_same_departure_after_setting_disabled(
     assert state.end_date == datetime.fromisoformat(str(saved_target["ends_at"]))
     await host.session.refresh(member)
     assert member.state == "left" and member.current_user_id is None
+    assert host.settings.TRIAL_CAPTCHA_ENABLED is True
+    assert (
+        await host.session.scalar(
+            select(func.count()).select_from(Subscription).where(Subscription.user_id == USER_ID)
+        )
+        == 1
+    )
+    assert (
+        await host.session.scalar(
+            select(func.count()).select_from(Payment).where(Payment.user_id == USER_ID)
+        )
+        == 0
+    )
+
+
+@pytest.mark.parametrize("unavailable", ["disabled", "zero-duration"])
+async def test_departure_without_trial_does_not_require_captcha(
+    host: Host, captcha: str, unavailable: str
+) -> None:
+    operation_id = await departure(host, "self")
+    # Also cover settings changing after a trial target was already persisted.
+    if unavailable == "disabled":
+        host.settings.TRIAL_ENABLED = False
+    else:
+        host.settings.TRIAL_DURATION_DAYS = 0
+    assert await execute(host, operation_id)
+    state = await AccessAdapter(host.service).read(host.session, USER_ID)
+    assert state is not None and not state.is_active and state.provider != "trial"
+    assert host.panel.users[state.panel_user_uuid]["status"] == "EXPIRED"
+    assert state.end_date <= datetime.now(UTC)
+    operation = await host.session.get(Operation, operation_id)
+    assert operation is not None and operation.state == "succeeded"
+    member = await host.session.get(Membership, operation.membership_id)
+    assert member is not None and member.state == "left" and member.current_user_id is None
+    assert host.settings.TRIAL_CAPTCHA_ENABLED is True
+    assert (
+        await host.session.scalar(
+            select(func.count()).select_from(Payment).where(Payment.user_id == USER_ID)
+        )
+        == 0
+    )
 
 
 async def test_cleaned_trial_history_allows_native_administrative_departure_reset(

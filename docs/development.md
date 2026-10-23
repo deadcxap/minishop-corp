@@ -15,7 +15,7 @@ bash scripts/check.sh
 bash scripts/integration-check.sh
 ```
 
-`fetch-minishop.sh` загружает Minishop 3.8.2 в `.local/minishop`, сверяет commit
+`fetch-minishop.sh` загружает Minishop 3.8.3 в `.local/minishop`, сверяет commit
 и не перезаписывает существующий checkout. `MINISHOP_SOURCE` допускает другой
 чистый checkout той же ревизии. Проверка `check-minishop.sh` выполняется перед
 зависимыми командами. Другие плагины для разработки не требуются.
@@ -33,10 +33,12 @@ bash scripts/lock-python.sh
 ```
 
 `check.sh` запускает Ruff, строгий mypy, unit-тесты, TypeScript, сборку ESM,
-DOM-тесты и проверку wheel с RU/EN. `integration-check.sh` использует PostgreSQL,
-настоящие сервисы/DAL Minishop и HTTP-двойники панели/Telegram. Временная база
+DOM-тесты и проверку wheel с RU/EN. `integration-check.sh` поднимает PostgreSQL и Redis,
+использует настоящие сервисы/DAL Minishop и HTTP-двойники панели/Telegram. Временная база
 создаётся для прогона и удаляется после него. Конкурентные сценарии используют
 разные соединения, остальные изолируются транзакциями/savepoint.
+Проверки капчи используют Redis DB 15 с отдельными префиксами; сценарии
+недоступного Redis сохраняются и проверяют независимость корпоративной выдачи.
 
 Исходники ядра подключаются только для чтения. Bytecode отключён, кеши и временные
 файлы находятся в `.local/`. Зависимости не устанавливаются в checkout Minishop.

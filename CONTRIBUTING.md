@@ -6,7 +6,7 @@
 
 ## Окружение
 
-Нужны Linux/WSL, Python 3.12, uv и Docker с Compose. Minishop 3.8.2 и образы
+Нужны Linux/WSL, Python 3.12, uv и Docker с Compose. Minishop 3.8.3 и образы
 инструментов закреплены в [dev/minishop.json](dev/minishop.json).
 
 ```bash

@@ -6,6 +6,7 @@ rollback cannot undo an HTTP write: retry the SAME persisted target after revali
 """
 
 from datetime import UTC, datetime, timedelta
+from inspect import signature
 
 from bot.plugins.spec import PluginContext
 from bot.services.panel_tariff_tags import (
@@ -451,8 +452,18 @@ class AccessAdapter:
             await self._push(state.panel_user_uuid, fields)
             # Native activation may consume a deferred welcome bonus. That is
             # accepted: departure still restores only the fixed standard trial.
+            # Core 3.8.3's payment flag only skips captcha for this call. Reuse it
+            # for the authorized corporate departure, without creating a payment,
+            # changing shared settings or granting the account a captcha proof.
+            # Older Core versions have no captcha gate and no such parameter.
+            trial_options: dict[str, bool] = {}
+            if (
+                "captcha_verified_payment"
+                in signature(self.service.activate_trial_subscription).parameters
+            ):
+                trial_options["captcha_verified_payment"] = True
             result = await self.service.activate_trial_subscription(
-                session, user_id, commit=False, emit_event=False
+                session, user_id, commit=False, emit_event=False, **trial_options
             )
             if not result or result.get("activated") is not True:
                 raise AccessError(AccessFailure.PANEL_UNCONFIRMED)

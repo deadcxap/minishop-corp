@@ -68,6 +68,7 @@ services:
       - ../.local/build-context/core-revision:/minishop/.build-commit:ro
     environment:
       CORP_INTEGRATION: "1"
+      CORP_COMPAT_REDIS_URL: redis://redis:6379/15
       POSTGRES_HOST: postgres
       POSTGRES_USER: corp_dev
       POSTGRES_PASSWORD: local-development-only
@@ -85,6 +86,8 @@ services:
     command: ["python", "-m", "pytest", "tests/integration", "-q"]
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
   postgres:
     image: postgres:17.11-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
