@@ -19,7 +19,9 @@ class Panel:
         self.fail_trial_activation = False
         self.trial_applied = False
         self.external_squads: dict[str, dict[str, object]] = {}
+        self.internal_squads: dict[str, dict[str, object]] | None = None
         self.fail_squads = False
+        self.fail_stats = False
         self.devices: dict[str, list[dict[str, object]]] = {}
         self.fail_reads = False
         self.fail_devices = False
@@ -55,6 +57,14 @@ class Panel:
             )
         if method == "GET" and path == "system/metadata":
             return web.json_response({"response": {"version": "2.8.1"}})
+        if method == "GET" and path == "system/stats":
+            if self.fail_stats:
+                return web.json_response({"message": "Unavailable"}, status=503)
+            return web.json_response({"response": {"users": {"totalUsers": len(self.users)}}})
+        if method == "GET" and path == "internal-squads" and self.internal_squads is not None:
+            return web.json_response(
+                {"response": {"internalSquads": list(self.internal_squads.values())}}
+            )
         if method == "GET" and path.startswith("external-squads/"):
             if self.fail_squads:
                 return web.json_response({"message": "Unavailable"}, status=503)
