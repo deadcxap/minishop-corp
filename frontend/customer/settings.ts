@@ -20,6 +20,7 @@ export class SettingsCard extends Panel {
   constructor(target: HTMLElement, public props: CustomerProps) {
     super(props.language, (signal) => new CustomerApi(() => this.props.host, signal));
     this.root.className = "minishop-corp corp-settings-tile"; target.append(this.root);
+    this.body.className = "settings-group";
     void this.run(async () => {
       this.current = nullable((await this.api.request("/membership")).membership, membership);
       this.loaded = true;
@@ -28,7 +29,7 @@ export class SettingsCard extends Panel {
   render(): void {
     const c = (key: Parameters<typeof customerText>[1]): string => customerText(this.language, key);
     const entry = button("", () => this.props.host.navigate("corporate-home"), "corp-settings-button");
-    entry.className = "corp-settings-button";
+    entry.className = "corp-settings-button settings-row";
     const symbol = icon(21, ["M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2", "M4 6h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z", "M2 11a20 20 0 0 0 20 0", "M12 12v2"], "corp-settings-icon");
     const text = el("span", undefined, "corp-settings-text");
     text.append(el("strong", this.current?.contract.name ?? c("title")));

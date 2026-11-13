@@ -92,24 +92,15 @@ def audience_service(client: TestClient) -> CorporateAudienceService:
 
 
 @pytest.mark.parametrize("kind", ["corporate", "other-provider", "required-channel"])
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="1.1.0 does not adapt native user_audiences providers, settings or corporate targets",
-)
+@pytest.mark.parametrize("warm", [False, True], ids=["cold", "warm"])
 async def test_user_audience_settings_preserve_native_and_corporate_groups(
-    broadcast_client: TestClient, host: Host, kind: str
+    broadcast_client: TestClient, host: Host, kind: str, warm: bool
 ) -> None:
     service = audience_service(broadcast_client)
     contract = await seed_contract(host.session)
     recipient = await add_member(host, contract, 1, telegram_id=810001)
     if kind == "corporate":
         expected = contract_target(contract.id)
-        # The admin editor warms the per-process corporate catalog first.
-        reply = await broadcast_client.get(
-            "/api/admin/broadcast/audience-counts", headers=authorization(host)
-        )
-        assert reply.status == 200 and (await reply.json())["counts"][expected] == 1
     elif kind == "other-provider":
         expected = "other.audience"
 
@@ -129,6 +120,11 @@ async def test_user_audience_settings_preserve_native_and_corporate_groups(
                 "channel_subscription_checked_at": datetime.now(UTC),
             },
         )
+    if warm:
+        reply = await broadcast_client.get(
+            "/api/admin/broadcast/audience-counts", headers=authorization(host)
+        )
+        assert reply.status == 200 and (await reply.json())["counts"][expected] == 1
     reply = await broadcast_client.get(
         f"/api/admin/users/{recipient}/broadcast-audiences", headers=authorization(host)
     )
@@ -138,11 +134,6 @@ async def test_user_audience_settings_preserve_native_and_corporate_groups(
 
 @pytest.mark.parametrize("kind", ["contract", "selection"])
 @pytest.mark.parametrize("check", ["recipients", "counts"])
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="1.1.0 corporate recipient selection and counts ignore native audience exclusions",
-)
 async def test_native_exclusion_removes_recipient_from_corporate_audience(
     broadcast_client: TestClient, host: Host, kind: str, check: str
 ) -> None:

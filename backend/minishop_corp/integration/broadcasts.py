@@ -7,6 +7,9 @@ route, delivery queue or core table is modified.
 """
 
 from collections.abc import Callable
+from importlib import import_module
+from importlib.util import find_spec
+from typing import Protocol, cast, runtime_checkable
 from uuid import UUID
 
 from aiohttp import web
@@ -21,10 +24,32 @@ from bot.services.audience_segmentation import (
 from db.models import User
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import Select
 
 from ..broadcasts import CONTRACT_PREFIX, PREFIX, SELECTION_PREFIX, contract_target, parse_target
 from ..storage.schema import BroadcastAudience, Contract, Membership
 from .worker import sessions_for
+
+
+class _AudienceExclusions(Protocol):
+    async def excluded_ids_by_target(
+        self, session: AsyncSession, target: str | None = None
+    ) -> dict[str, set[int]]: ...
+
+
+@runtime_checkable
+class _UserAudiences(Protocol):
+    async def user_audiences(self, user_id: int) -> list[str]: ...
+
+
+async def _excluded_ids(session: AsyncSession, target: str | None = None) -> dict[str, set[int]]:
+    # This native DAL first appears in 3.8.5. Only its absence is optional;
+    # import/query failures must propagate rather than allow excluded recipients.
+    module = "db.dal.broadcast_audience_dal"
+    if find_spec(module) is None:
+        return {}
+    dal = cast(_AudienceExclusions, import_module(module))
+    return await dal.excluded_ids_by_target(session, target)
 
 
 class CorporateAudienceService(AudienceSegmentationService):
@@ -63,6 +88,51 @@ class CorporateAudienceService(AudienceSegmentationService):
     def audiences(self) -> list[AudienceDefinition]:
         return [*self.native.audiences(), *self.catalog]
 
+    async def user_audiences(self, user_id: int) -> list[str]:
+        # The original instance owns native settings and registered providers.
+        # Discovery includes excluded groups so administrators can include users again.
+        if not isinstance(self.native, _UserAudiences):
+            raise NotImplementedError("Native user audience discovery requires Minishop 3.8.5")
+        targets = set(await self.native.user_audiences(user_id))
+        async with self.sessions() as session:
+            joined = set(
+                await session.scalars(
+                    select(Membership.contract_id)
+                    .join(User, User.user_id == Membership.current_user_id)
+                    .where(
+                        Membership.current_user_id == user_id,
+                        Membership.state == "active",
+                        User.is_banned.is_(False),
+                    )
+                )
+            )
+            if joined:
+                available = set(await session.scalars(select(Contract.id)))
+                joined &= available
+                targets.update(contract_target(identifier) for identifier in joined)
+                # Read durable selections directly, including in a cold worker.
+                # A selection with any deleted contract cannot accept a broadcast.
+                for selection in await session.scalars(select(BroadcastAudience)):
+                    identifiers = {UUID(value) for value in selection.contract_ids}
+                    if len(identifiers) > 1 and identifiers <= available and identifiers & joined:
+                        targets.add(SELECTION_PREFIX + selection.id.hex)
+        return sorted(targets)
+
+    @staticmethod
+    def _members(identifiers: list[UUID], excluded: set[int]) -> Select[tuple[int]]:
+        return (
+            select(User.user_id)
+            .join(Membership, Membership.current_user_id == User.user_id)
+            .where(
+                Membership.contract_id.in_(identifiers),
+                Membership.state == "active",
+                User.is_banned.is_(False),
+                User.user_id.not_in(excluded),
+            )
+            .distinct()
+            .order_by(User.user_id)
+        )
+
     async def resolve_user_ids(self, target: str) -> list[int]:
         normalized = target.strip().lower()
         if not normalized.startswith(PREFIX):
@@ -90,23 +160,13 @@ class CorporateAudienceService(AudienceSegmentationService):
             )
             if not ids or set(existing) != set(ids):
                 raise AudienceNotFoundError(normalized)
-            return list(
-                await session.scalars(
-                    select(Membership.current_user_id)
-                    .join(User, User.user_id == Membership.current_user_id)
-                    .where(
-                        Membership.contract_id.in_(ids),
-                        Membership.state == "active",
-                        User.is_banned.is_(False),
-                    )
-                    .distinct()
-                    .order_by(Membership.current_user_id)
-                )
-            )
+            excluded = await _excluded_ids(session, normalized)
+            return list(await session.scalars(self._members(ids, excluded.get(normalized, set()))))
 
     async def counts(self) -> dict[str, int | None]:
         counts = await self.native.counts()
         async with self.sessions() as session:
+            excluded = await _excluded_ids(session)
             rows = (await session.execute(select(Contract.id, Contract.name))).all()
             names = {identifier: name for identifier, name in rows}
             grouped = (
@@ -118,13 +178,25 @@ class CorporateAudienceService(AudienceSegmentationService):
                 )
             ).all()
             totals = {identifier: int(total) for identifier, total in grouped}
+
+            async def count(target: str, identifiers: list[UUID]) -> int:
+                removed = excluded.get(target, set())
+                if not removed:
+                    return sum(totals.get(identifier, 0) for identifier in identifiers)
+                # Only audiences with exclusions need another query, like native
+                # counts(). Use the same membership predicate as actual delivery.
+                query = self._members(identifiers, removed).order_by(None).subquery()
+                result = await session.scalar(select(func.count()).select_from(query))
+                assert result is not None
+                return result
+
             catalog = [
                 self.definition(contract_target(identifier), name)
                 for identifier, name in sorted(rows, key=lambda row: (row[1], row[0]))
             ]
-            counts.update(
-                {contract_target(identifier): totals.get(identifier, 0) for identifier in names}
-            )
+            for identifier in names:
+                target = contract_target(identifier)
+                counts[target] = await count(target, [identifier])
             selections = list(await session.scalars(select(BroadcastAudience)))
             for selection in sorted(selections, key=lambda item: item.id):
                 ids = [UUID(value) for value in selection.contract_ids]
@@ -155,7 +227,7 @@ class CorporateAudienceService(AudienceSegmentationService):
                 catalog.append(
                     self.definition(target, label if len(label) <= 240 else label[:239] + "…")
                 )
-                counts[target] = sum(totals.get(identifier, 0) for identifier in ids)
+                counts[target] = await count(target, ids)
         # Publish only a complete catalog. An unavailable database never becomes
         # an empty audience or a fabricated zero count.
         self.catalog = catalog

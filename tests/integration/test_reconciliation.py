@@ -49,9 +49,13 @@ async def due(host: Host, member_id: UUID) -> UUID:
     # Move the shared deadline, never an individual participant's timer.
     sweep = await host.session.get(ReconciliationSweep, 1)
     assert sweep is not None
-    sweep.next_run_at = datetime.now(UTC)
+    member = await host.session.get(Membership, member_id)
+    assert member is not None
+    # One explicit instant keeps this fixture due even if the host clock moves
+    # backwards between reads; the member must already exist at sweep start.
+    now = max(datetime.now(UTC), member.created_at)
+    sweep.next_run_at = now
     await host.session.flush()
-    now = datetime.now(UTC)
     operations = {}
     for _ in range(50):
         lease = await claim_sweep(host.session, now=now)
