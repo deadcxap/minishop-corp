@@ -18,7 +18,11 @@ from bot.middlewares.i18n import JsonI18n
 from bot.plugins.spec import WEB_SCOPE_WEBAPP, PluginContext
 from bot.services.account_roles import grant_role, revoke_role
 from bot.services.admin_broadcast_delivery import AdminBroadcastDeliveryService
-from bot.services.audience_segmentation import AudienceNotFoundError, AudienceSegmentationService
+from bot.services.audience_segmentation import (
+    AudienceNotFoundError,
+    AudienceProvider,
+    AudienceSegmentationService,
+)
 from bot.utils.message_queue import MessageQueueManager
 from db.broadcast_models import AdminBroadcastDelivery
 from db.dal import broadcast_dal, user_dal
@@ -67,6 +71,18 @@ async def add_member(
     )
     await host.session.flush()
     return identifier
+
+
+async def test_other_plugin_provider_resolution_uses_native_service(host: Host) -> None:
+    _, service = services(host)
+    other_id = USER_ID + 1
+    await user_dal.create_user(host.session, {"user_id": other_id})
+
+    async def members() -> list[int]:
+        return [USER_ID, USER_ID, other_id]
+
+    service.register_provider(AudienceProvider("other.audience", "other", "Other", members))
+    assert await service.resolve_user_ids("other.audience") == [USER_ID, other_id]
 
 
 async def test_live_members_and_immutable_selection_survive_new_service(host: Host) -> None:

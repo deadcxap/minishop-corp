@@ -63,7 +63,9 @@ async def test_service_decoration_preserves_native_and_other_plugin_providers(
     assert isinstance(service, CorporateAudienceService)
     assert service is not native
     assert type(native) is AudienceSegmentationService
-    assert await service.resolve_user_ids("other.audience") == [12, 34]
+    # Since Core 3.8.5 resolution also reads per-user exclusions from PostgreSQL.
+    # Recipient delegation is covered by the integration test with a real session.
+    assert service.has_target("other.audience")
     service.register_provider(AudienceProvider("another.audience", "another", "Another", members))
     assert native.has_target("another.audience")
     assert service.unregister_provider("another.audience")
