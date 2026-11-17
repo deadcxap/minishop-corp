@@ -8,6 +8,8 @@ export async function adminCases(browser) {
   for (const language of ["ru", "en"]) for (const width of [375, 1280]) for (const theme of ["light", "dark"]) {
     const page = await browser.newPage({ viewport: { width, height: 900 }, locale: language === "ru" ? "ru-RU" : "en-US" });
     const api = fixture(), errors = [];
+    const checkPolling = language === "ru" && theme === "light";
+    if (checkPolling) await page.clock.install();
     const t = (key) => (language === "ru" ? ru : en)[`admin_minishop_corp_${key}`];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.context().addCookies([{ name: "rw_webapp_csrf", value: "synthetic-browser-csrf", url: process.env.CORP_PREVIEW_URL }]);
@@ -56,12 +58,38 @@ export async function adminCases(browser) {
     await snap("member-manager");
     await button("revoke_manager").click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.contracts[0].manager_user_id, null); assert.equal(api.members[0].state, "active");
+    const actionsWidth = () => page.locator(".corp-members th:last-child").evaluate(node => node.getBoundingClientRect().width);
+    const originalActionsWidth = await actionsWidth();
     await page.locator('[name="member_query"]').fill(MINISHOP_ID);
     await button("search", page.locator('#corp-panel-members')).click(); await ready();
     await button("add_member").click(); await snap("add-member-confirmation");
     await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.members.length, 3); assert.equal(api.members[2].state, "pending");
+    const added = page.locator(`[data-member="${api.members[2].id}"]`);
+    const addedActions = added.getByRole("cell").last();
+    assert.equal(await added.getByRole("cell").first().getByText(t("state_pending"), { exact: true }).count(), 1);
+    assert.equal(await addedActions.getByText(t("state_pending"), { exact: true }).count(), 0);
+    assert.equal(await addedActions.getByRole("button").count(), 2);
+    assert.equal(await actionsWidth(), originalActionsWidth);
     await snap("member-added");
+    if (checkPolling) {
+      const query = page.locator('[name="member_query"]');
+      await query.fill("Черновик поиска");
+      const input = await query.elementHandle();
+      await input.evaluate((node) => { node.focus(); node.setSelectionRange(2, 6); });
+      const scroll = page.locator("#corp-panel-members .corp-table-scroll");
+      const offset = await scroll.evaluate((node) => { node.scrollLeft = 40; return node.scrollLeft; });
+      assert.equal(offset > 0, width === 375);
+      const added = api.members[2];
+      added.state = "active"; added.operation.state = "succeeded";
+      const refreshed = page.waitForResponse((reply) => reply.request().method() === "GET" && new URL(reply.url()).pathname.endsWith("/members"));
+      await page.clock.fastForward(10_000);
+      await refreshed;
+      await page.locator(`[data-member="${added.id}"] .corp-member-status`).waitFor({ state: "detached" });
+      assert.deepEqual(await input.evaluate((node) => [document.activeElement === node, node.value, node.selectionStart, node.selectionEnd]),
+        [true, "Черновик поиска", 2, 6]);
+      assert.equal(await scroll.evaluate((node) => node.scrollLeft), offset);
+    }
     await button("exclude").first().click(); await write(button("confirm", page.getByRole("dialog"))); await ready();
     assert.equal(api.members.length, 3); assert.equal(api.members[0].state, "leaving");
     await tab("invitations").click(); await ready();

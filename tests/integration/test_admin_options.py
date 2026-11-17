@@ -87,9 +87,58 @@ async def test_account_selection_uses_native_ids_and_hides_banned_and_private_da
         assert "secret@example.invalid" not in str(payload)
         if query:
             assert identifiers == [MANAGER] and payload["next_page"] is None
-    for query in ("", "   ", "fix", "secret@", str(OTHER), str(2**100), "unknown"):
+    for query in ("", "   ", "@fix", "secret@", str(OTHER), str(2**100), "unknown"):
         response = await client.get(BASE + "accounts?q=" + query, headers=authorization(host))
         assert (await response.json())["accounts"] == []
+
+
+async def test_account_search_uses_display_names_and_returns_all_matching_accounts(
+    client: TestClient, host: Host
+) -> None:
+    await user_dal.update_user(
+        host.session, MANAGER, {"first_name": "Анна Мария", "last_name": "Орлова"}
+    )
+    await user_dal.update_user(
+        host.session,
+        MEMBER,
+        {"first_name": "Anna", "last_name": "Орлова-Ким", "username": "anna_id"},
+    )
+    await user_dal.update_user(
+        host.session, OTHER, {"first_name": "Анна Мария", "last_name": "Орлова", "is_banned": True}
+    )
+    await user_dal.update_user(host.session, USER_ID, {"username": "anna"})
+    for query, matches in (
+        (" Анна ", [MANAGER]),
+        ("ОРЛОВ", [MANAGER, MEMBER]),
+        ("анна мария орлова", [MANAGER]),
+        ("anna", [USER_ID, MEMBER]),
+        ("@anna", [USER_ID]),
+        ("@Анна", []),
+        ("%", []),
+        ("_", []),
+    ):
+        response = await client.get(
+            BASE + "accounts", params={"q": query}, headers=authorization(host)
+        )
+        assert response.status == 200, await response.text()
+        payload = await response.json()
+        assert [row["user_id"] for row in payload["accounts"]] == matches
+        assert payload["truncated"] is False and payload["next_page"] is None
+    assert not host.panel.requests
+
+
+async def test_broad_name_search_returns_a_bounded_list_and_reports_more_matches(
+    client: TestClient, host: Host
+) -> None:
+    for identifier in range(MEMBER + 1, MEMBER + 27):
+        await user_dal.create_user(host.session, {"user_id": identifier, "last_name": "Namesake"})
+    response = await client.get(
+        BASE + "accounts", params={"q": "namesake"}, headers=authorization(host)
+    )
+    assert response.status == 200, await response.text()
+    payload = await response.json()
+    assert [row["user_id"] for row in payload["accounts"]] == list(range(MEMBER + 1, MEMBER + 26))
+    assert payload["truncated"] is True
 
 
 @pytest.mark.parametrize(

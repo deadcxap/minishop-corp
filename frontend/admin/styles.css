@@ -1,3 +1,5 @@
+.minishop-corp .corp-sync-data { display: grid; gap: 14px; }
+
 /* The audience picker stays a single disclosure row until it is needed. */
 .minishop-corp.corp-broadcast { padding: 8px 14px; }
 .minishop-corp.corp-broadcast .corp-content { gap: 0; }

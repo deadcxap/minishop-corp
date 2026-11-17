@@ -11,7 +11,7 @@ from db.dal.user_reads_dal import (
 )
 from db.models import User
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..contracts_types import ContractError
@@ -20,6 +20,8 @@ from ..invitations_types import TariffOffer
 from ..member_types import MemberProfile
 from .contracts import ContractHost
 from .member_data import ProfileRecord
+
+NAME_MATCH_LIMIT = 25
 
 
 class TariffChoice(TariffOffer):
@@ -63,6 +65,32 @@ class AccountRecord(ProfileRecord):
 class AccountChoices(BaseModel):
     accounts: list[AccountChoice]
     next_page: int | None
+    truncated: bool = False
+
+
+async def _accounts_by_name(session: AsyncSession, value: str) -> AccountChoices:
+    # The host has exact username lookups but no account-name search in its DAL.
+    display_name = func.concat_ws(" ", func.trim(User.first_name), func.trim(User.last_name))
+    exact_username = func.lower(User.username) == value.lower()
+    rows = list(
+        await session.scalars(
+            select(User)
+            .where(
+                User.is_banned.is_not(True),
+                or_(exact_username, display_name.icontains(value, autoescape=True)),
+            )
+            .order_by(exact_username.is_(True).desc(), User.user_id)
+            .limit(NAME_MATCH_LIMIT + 1)
+        )
+    )
+    event(
+        "account_lookup", query_kind="name_or_username", result="matched" if rows else "not_found"
+    )
+    return AccountChoices(
+        accounts=[AccountRecord.model_validate(row).choice() for row in rows[:NAME_MATCH_LIMIT]],
+        next_page=None,
+        truncated=len(rows) > NAME_MATCH_LIMIT,
+    )
 
 
 class AdminOptions:
@@ -132,9 +160,11 @@ class AdminOptions:
             elif telegram is not None:
                 kind = "telegram_id"
             row = row if row is not None else telegram
-        else:
+        elif value.startswith("@"):
             kind = "username"
             row = await get_user_by_username(session, value)
+        else:
+            return await _accounts_by_name(session, value)
         event(
             "account_lookup",
             query_kind=kind,

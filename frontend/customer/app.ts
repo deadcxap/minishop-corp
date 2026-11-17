@@ -43,8 +43,11 @@ export class CustomerView extends Panel {
     if (!this.alive || !live(this.operation) || this.operation?.kind === "reconcile" || this.retry || this.error) return;
     this.timer = setTimeout(() => {
       this.timer = null;
-      if (document.hidden || this.busy || this.confirming) this.scheduleOperation();
-      else void this.run(() => this.load());
+      void this.poll(() => this.readMembership(), (data) => {
+        if (JSON.stringify(data) === JSON.stringify({ current: this.current, lastDeparture: this.lastDeparture })) return;
+        this.applyMembership(data);
+        this.render();
+      }).finally(() => this.scheduleOperation());
     }, 5000);
   }
   override failed(error: unknown): void {
@@ -53,13 +56,19 @@ export class CustomerView extends Panel {
       if ([401, 403].includes(error.status)) { this.current = null; this.lastDeparture = null; this.operation = null; this.manager = false; this.loaded = false; }
     }
   }
-  async load(): Promise<void> {
+  private async readMembership(): Promise<{ current: Membership | null; lastDeparture: CustomerOperation | null }> {
     const data = await this.api.request("/membership");
-    this.current = nullable(data.membership, membership);
-    this.lastDeparture = nullable(data.last_departure, customerOperation);
+    return { current: nullable(data.membership, membership), lastDeparture: nullable(data.last_departure, customerOperation) };
+  }
+  private applyMembership(data: { current: Membership | null; lastDeparture: CustomerOperation | null }): void {
+    this.current = data.current;
+    this.lastDeparture = data.lastDeparture;
     this.operation = this.current?.operation ?? null;
     if (this.current) { this.proposal = null; this.code = ""; this.offeredCode = ""; }
     this.loaded = true;
+  }
+  async load(): Promise<void> {
+    this.applyMembership(await this.readMembership());
     this.manager = list((await this.api.request("/managed-contracts?limit=1")).contracts, summary).length > 0;
   }
   async inspect(): Promise<void> {
@@ -104,6 +113,7 @@ export class CustomerView extends Panel {
       }
       if (this.manager) {
         const manage = button("", () => this.props.host.navigate("corporate-manager"), "corp-manager-entry");
+        manage.dataset.focus = "manager";
         manage.append(icon("users"), el("span", this.c("manager_title")), icon("chevron")); body.append(manage);
       }
       if (this.error && live(this.operation) && !this.retry) body.append(button(this.t("retry_load"), () => { void this.run(() => this.load()); }));
@@ -114,7 +124,8 @@ export class CustomerView extends Panel {
         if (current.state !== "active") card.append(el("span", this.t(`state_${current.state}`), "corp-pill"));
         card.append(el("p", this.c("payment_notice"), "corp-notice"));
         if (expired) card.append(el("p", this.c("expired_notice"), "corp-notice"));
-        const leave = button(this.c("leave"), () => { void this.leave(); }, "corp-danger"); leave.disabled = !current.can_leave;
+        const leave = button(this.c("leave"), () => { void this.leave(); }, "corp-danger");
+        leave.dataset.focus = "leave"; leave.disabled = !current.can_leave;
         card.append(leave); body.append(card);
       }
       if (this.operation && live(this.operation)) {
@@ -148,7 +159,8 @@ export class CustomerView extends Panel {
         }
       }
       const footer = el("div", undefined, "corp-customer-footer");
-      footer.append(button(this.c("support"), () => this.props.host.navigateSection("support"), "corp-ghost")); body.append(footer);
+      const support = button(this.c("support"), () => this.props.host.navigateSection("support"), "corp-ghost");
+      support.dataset.focus = "support"; footer.append(support); body.append(footer);
     });
   }
   updateProps(props: CustomerProps): void { this.props = props; this.update(props.language); this.followLink(); }

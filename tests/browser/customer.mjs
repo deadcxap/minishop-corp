@@ -69,6 +69,16 @@ export async function customerCases(browser) {
     assert.equal(await button(a("exclude")).first().getAttribute("title"), a("exclude"));
     await button(a("exclude")).first().click(); await write(button(a("confirm"), page.getByRole("dialog")));
     assert.equal(api.base.members.length, 2); assert.equal(api.base.members[0].state, "leaving");
+    const removed = page.locator(`[data-member="${api.base.members[0].id}"]`);
+    const participant = removed.getByRole("cell").first(), actions = removed.getByRole("cell").last();
+    await participant.getByText(a("state_leaving"), { exact: true }).waitFor();
+    assert.equal(await actions.getByText(a("state_leaving"), { exact: true }).count(), 0);
+    Object.assign(api.base.members[0].operation, { state: "retry", error_code: "minishop_corp_panel_unconfirmed" });
+    await button(a("refresh"), page.locator('[role="tabpanel"]:visible')).click();
+    await participant.getByText(a("state_retry"), { exact: true }).waitFor();
+    assert.equal(await participant.getByText(dictionary.minishop_corp_operation_failed).count(), 1);
+    assert.equal(await actions.getByText(a("state_retry"), { exact: true }).count(), 0);
+    assert.equal(await actions.getByText(dictionary.minishop_corp_operation_failed).count(), 0);
     await page.getByRole("tab", { name: a("members"), exact: true }).focus(); await page.keyboard.press("ArrowRight");
     await button(a("rotate")).waitFor(); await button(a("rotate")).click(); await write(button(a("confirm"), page.getByRole("dialog")));
     await button(a("copy_code")).waitFor(); assert.equal(api.base.invitations[1].use_limit, 12); await snap("manager-code");

@@ -146,7 +146,16 @@ test("manager table hides unavailable copy actions and clears the clipboard fall
   assert.ok(api.calls.every(call => call.method === "GET"));
 });
 test("completed activation stops polling and a fast departure immediately shows its receipt", async (t) => {
-  const { api, target, join, tick, click } = setup(t); await join(); api.complete(); await tick(6000);
+  const { api, target, join, tick, click } = setup(t); await join();
+  const support = target.querySelector('[data-focus="support"]');
+  support.focus();
+  const before = api.calls.length;
+  await tick(6000);
+  assert.deepEqual(api.calls.slice(before).map(({ path }) => path), ["/membership"]);
+  assert.equal(target.querySelector('[data-focus="support"]'), support);
+  assert.equal(document.activeElement, support);
+  api.complete(); await tick(6000);
+  assert.equal(document.activeElement, target.querySelector('[data-focus="support"]'));
   const idle = api.calls.length; await tick(3600000); assert.equal(api.calls.length, idle);
   assert.doesNotMatch(target.textContent, /Internal tariff|Refresh|Next check/);
   const original = api.hostRequest;

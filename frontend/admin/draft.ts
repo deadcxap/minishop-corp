@@ -12,6 +12,8 @@ export interface DraftState { contractId: string | null; tab: Tab; editor: Edito
 const KEY = "minishop-corp.admin-draft.v1";
 const TTL = 24 * 60 * 60 * 1000;
 const memory = new WeakMap<Document, string>();
+// The member lookup only needs to survive a host remount within this document.
+const memberQueries = new WeakMap<Document, { owner: number; contractId: string; query: string; updated: number }>();
 const active = new WeakMap<Document, DraftStore>();
 
 function decodeSubmission(value: unknown): Submission {
@@ -36,7 +38,20 @@ export class DraftStore {
   clear(): void {
     if (active.get(this.doc) !== this) return;
     memory.delete(this.doc);
+    memberQueries.delete(this.doc);
     try { this.doc.defaultView?.sessionStorage.removeItem(KEY); } catch { /* Storage may be disabled. */ }
+  }
+  writeMemberQuery(contractId: string, query: string): void {
+    if (active.get(this.doc) !== this) return;
+    if (query) memberQueries.set(this.doc, { owner: this.owner, contractId, query, updated: Date.now() });
+    else memberQueries.delete(this.doc);
+  }
+  readMemberQuery(contractId: string): string {
+    if (active.get(this.doc) !== this) return "";
+    const saved = memberQueries.get(this.doc);
+    if (saved?.owner === this.owner && saved.contractId === contractId && Date.now() - saved.updated <= TTL) return saved.query;
+    memberQueries.delete(this.doc);
+    return "";
   }
   write(state: DraftState): void {
     // Host transitions can mount the replacement before disposing the old view.

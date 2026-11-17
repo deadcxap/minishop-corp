@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Window } from "happy-dom";
 import * as admin from "../../frontend/dist/admin/index.js";
-import { fixture, CONTRACT_ID, SQUAD_ID, MEMBER_ID, MEMBER_MINISHOP_ID, OTHER_MINISHOP_ID, DIAGNOSTIC_ID } from "../fixtures/admin-api.mjs";
+import { fixture, CONTRACT_ID, SQUAD_ID, MEMBER_ID, MEMBER_MINISHOP_ID, OTHER_MINISHOP_ID, NAMESAKE_MINISHOP_ID, DIAGNOSTIC_ID } from "../fixtures/admin-api.mjs";
 
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve)); };
 function setup(context) {
@@ -17,7 +17,7 @@ function setup(context) {
   context.mock.method(globalThis, "fetch", async (path, options) => {
     assert.equal(options.credentials, "same-origin"); signals.push(options.signal);
     if (options.method !== "GET") assert.equal(options.headers["X-CSRF-Token"], "synthetic-csrf");
-    const result = api.respond(path, options.method, options.body ? JSON.parse(options.body) : undefined);
+    const result = await api.respond(path, options.method, options.body ? JSON.parse(options.body) : undefined);
     return Response.json(result.payload, { status: result.status, headers: { "X-Corp-Request-ID": DIAGNOSTIC_ID } });
   });
   const view = admin.mountView("corporate-contracts", target, { currentLang: "en" });
@@ -212,7 +212,7 @@ test("new form defaults to today, has no refresh or user directory, and requires
   assert.ok(![...target.querySelectorAll("button")].some((v) => v.textContent === "Refresh"));
   assert.ok(!api.calls.some((v) => v.path === "/options/accounts"));
   assert.equal(target.querySelector('select[name="manager"]'), null);
-  assert.equal(target.querySelector('[name="manager"]').placeholder, "Minishop ID, Telegram ID, @username or email");
+  assert.equal(target.querySelector('[name="manager"]').placeholder, "First or last name, ID, @username or email");
   fill("name", "Selected manager"); fill("tariff", "corp"); fill("manager", "manager@example.invalid");
   await click("Find account"); await submit();
   assert.match(target.textContent, /confirm the manager selection/);
@@ -220,6 +220,33 @@ test("new form defaults to today, has no refresh or user directory, and requires
   await click("Confirm manager"); await submit();
   assert.equal(api.contracts[1].manager_user_id, 910011);
   assert.equal(api.contracts[1].external_squad_uuid, null);
+});
+
+test("both account forms let the administrator select a namesake by Minishop ID", async (context) => {
+  const { api, target, click, fill, submit, open } = setup(context);
+  const namesake = (panel) => {
+    assert.equal(panel.querySelectorAll("[data-account]").length, 2);
+    assert.match(panel.textContent, /More accounts match/);
+    return panel.querySelector(`[data-account="${NAMESAKE_MINISHOP_ID}"]`);
+  };
+  await open();
+  const managerInput = target.querySelector('[name="manager"]');
+  fill("manager", "Fixture Manager");
+  assert.equal(target.querySelector('[name="manager"]'), managerInput);
+  await click("Find account");
+  await click("Confirm manager", namesake(target.querySelector("#corp-panel-terms")));
+  await submit(); await click("Confirm", target.querySelector("dialog"));
+  assert.equal(api.contracts[0].manager_user_id, 910012);
+
+  await click("Members");
+  const memberInput = target.querySelector('[name="member_query"]');
+  fill("member_query", "Fixture Manager");
+  assert.equal(target.querySelector('[name="member_query"]'), memberInput);
+  await submit();
+  await click("Add member", namesake(target.querySelector("#corp-panel-members")));
+  assert.ok(target.querySelector("dialog").textContent.includes(NAMESAKE_MINISHOP_ID));
+  await click("Confirm", target.querySelector("dialog"));
+  assert.equal(api.members.at(-1).profile.user_id, 910012);
 });
 
 test("date shortcuts use the selected date, calendar months and leap-year clamping", async (context) => {
@@ -429,4 +456,84 @@ test('manual addition searches and confirms an account with terms, then retries 
   const writes = api.calls.filter(c => c.method === 'POST' && c.path.endsWith('/members'));
   assert.equal(writes.length, 2); assert.deepEqual(writes[0].body, writes[1].body);
   assert.equal(panel.querySelector('[name="member_query"]').value, '');
+});
+
+test("a host remount keeps the member query in memory for the same administrator", async (context) => {
+  const { api, target, view, click, fill, open, submit } = setup(context);
+  const query = "@fixture_manager";
+  const lookupCalls = () => api.calls.filter((call) => call.path === "/options/accounts" && new URLSearchParams(call.search).has("q"));
+  await open(); await click("Members"); fill("member_query", query); await submit();
+  assert.ok(target.querySelector("#corp-panel-members [data-account]"));
+  const storage = document.defaultView.sessionStorage;
+  for (let index = 0; index < storage.length; index++) {
+    assert.ok(!storage.getItem(storage.key(index)).includes(query));
+  }
+
+  const remount = async (oldView) => {
+    admin.unmountView(oldView);
+    const next = admin.mountView("corporate-contracts", target, { currentLang: "en" });
+    context.after(() => admin.unmountView(next)); await flush(); return next;
+  };
+  const next = await remount(view);
+  assert.equal(target.querySelector('[name="member_query"]').value, query);
+  assert.equal(target.querySelector("#corp-panel-members [data-account]"), null);
+  assert.equal(lookupCalls().length, 1);
+
+  api.actorUserId++;
+  await remount(next); await open(); await click("Members");
+  assert.equal(target.querySelector('[name="member_query"]').value, "");
+  assert.equal(lookupCalls().length, 1);
+});
+
+test("background member updates keep the search, tabs and table usable", async (context) => {
+  context.mock.timers.enable({ apis: ["setInterval"] });
+  const { api, target, click, open } = setup(context);
+  api.members[0].state = "pending";
+  await open(); await click("Members");
+  const query = target.querySelector('[name="member_query"]');
+  const other = target.querySelector(`[data-member="${api.members[1].id}"]`);
+  const scroll = other.closest(".corp-table-scroll");
+  const sync = target.querySelector("#corp-tab-sync");
+  query.value = "Unsubmitted name"; query.focus(); query.setSelectionRange(3, 8);
+  scroll.scrollLeft = 35;
+  const respond = api.respond;
+  let release;
+  const wait = new Promise((resolve) => { release = resolve; });
+  api.respond = async (path, ...args) => {
+    if (new URL(path, "https://fixture.invalid").pathname.endsWith("/members")) await wait;
+    return respond(path, ...args);
+  };
+
+  context.mock.timers.tick(10_000); await flush();
+  assert.equal(query.disabled, false); assert.equal(sync.disabled, false);
+  assert.equal(document.activeElement, query);
+  assert.match(target.querySelector(`[data-member="${MEMBER_ID}"]`).textContent, /Pending/);
+  api.members[0].state = "active"; release(); await flush();
+  assert.doesNotMatch(target.querySelector(`[data-member="${MEMBER_ID}"]`).textContent, /Pending/);
+  assert.equal(target.querySelector('[name="member_query"]'), query);
+  assert.equal(document.activeElement, query);
+  assert.deepEqual([query.value, query.selectionStart, query.selectionEnd], ["Unsubmitted name", 3, 8]);
+  assert.equal(target.querySelector(`[data-member="${api.members[1].id}"]`), other);
+  assert.equal(scroll.scrollLeft, 35);
+  assert.equal(target.querySelector("#corp-tab-sync"), sync);
+});
+
+test("background synchronization updates only the displayed progress", async (context) => {
+  context.mock.timers.enable({ apis: ["setInterval"] });
+  const { api, target, click, open } = setup(context);
+  await open(); await click("Synchronization");
+  const syncTab = target.querySelector("#corp-tab-sync");
+  const panel = target.querySelector("#corp-panel-sync");
+  const refresh = panel.querySelector('button[aria-label="Refresh"]');
+  const details = panel.querySelector(".corp-counters");
+  refresh.focus();
+
+  context.mock.timers.tick(10_000); await flush();
+  assert.equal(panel.querySelector(".corp-counters"), details);
+  api.pending = true;
+  context.mock.timers.tick(10_000); await flush();
+  assert.notEqual(panel.querySelector(".corp-counters"), details);
+  assert.equal(panel.querySelector('button[aria-label="Refresh"]'), refresh);
+  assert.equal(document.activeElement, refresh);
+  assert.equal(target.querySelector("#corp-tab-sync"), syncTab);
 });

@@ -1,6 +1,7 @@
 import { ApiError, requestId } from "../shared/api";
 import { translate, type AdminKey } from "../shared/i18n";
 import { Panel, button, confirm, date, el, field, input, person, refreshButton, select } from "../shared/ui";
+import { accountCard, searchAccounts, type AccountMatches } from "./accounts";
 import { account, contract, list, sameTerms, squad, tariff, terms,
   type Account, type Contract, type Squad, type Tariff, type Terms } from "./data";
 import { addPeriod, calendarDay, endOfDay, expiryDay } from "./calendar";
@@ -17,8 +18,8 @@ export class Editor extends Panel {
   name: string; tariffKey: string; end: string; managerId: number | null; squadId: string;
   readonly initialEnd: string;
   endTouched = false;
-  tariffs: Tariff[] = []; selected: Account | null = null; candidate: Account | null = null;
-  verified: Squad | null = null; query = ""; searched = false;
+  tariffs: Tariff[] = []; selected: Account | null = null; matches: AccountMatches | null = null;
+  verified: Squad | null = null; query = "";
   loaded = false;
   searchDiagnostic: string | null = null;
   pending: Submission | null = null;
@@ -66,9 +67,8 @@ export class Editor extends Panel {
   }
   async search(): Promise<void> {
     if (!this.query.trim()) return;
-    const result = await this.api.request(`/options/accounts?q=${encodeURIComponent(this.query.trim())}`);
+    this.matches = await searchAccounts(this.api, this.query);
     this.searchDiagnostic = this.api.lastRequestId ?? null;
-    this.candidate = list(result.accounts, account)[0] ?? null; this.searched = true;
   }
   async submit(): Promise<void> {
     if (this.squadId && this.verified?.uuid !== this.squadId) { this.error = new ApiError("admin_minishop_corp_squad_required", 400); this.render(); return; }
@@ -154,28 +154,42 @@ export class Editor extends Panel {
       squadBox.append(squadRow, el("small", this.t("squad_hint")));
       if (this.verified?.uuid === this.squadId) squadBox.append(el("p", `${this.t("squad_verified")}: ${this.verified.name}`, "corp-notice"));
       const managers = el("div", undefined, "corp-stack corp-settings-field");
+      const find = button(this.t("search"), () => { void this.run(() => this.search()); });
       const search = input("manager", this.query, (v) => {
-        this.query = v; this.managerId = null; this.selected = null; this.candidate = null; this.searched = false; this.searchDiagnostic = null; this.render();
+        this.query = v; this.managerId = null; this.selected = null; this.matches = null; this.searchDiagnostic = null;
+        updateManagerResults();
       }); search.maxLength = 320; search.placeholder = this.t("account_query"); search.autocomplete = "off";
-      search.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); void this.run(() => this.search()); } });
-      const find = button(this.t("search"), () => { void this.run(() => this.search()); }); find.disabled = !this.query.trim();
+      search.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.isComposing) return;
+        event.preventDefault(); void this.run(() => this.search());
+      });
       const managerRow = el("div", undefined, "corp-input-action"); managerRow.append(field(this.t("manager"), search), find);
-      managers.append(managerRow, el("small", this.t("manager_hint")));
-      if (this.managerId === null && !this.query.trim()) managers.append(el("p", this.t("manager_missing"), "corp-footnote"));
-      if (this.managerId !== null || this.query) managers.append(button(this.t("clear_manager"), () => {
-        this.managerId = null; this.query = ""; this.selected = null; this.candidate = null; this.searched = false; this.render();
-      }, "corp-ghost"));
-      if (this.candidate) {
-        const candidate = this.candidate;
-        const result = el("div", undefined, "corp-card");
-        result.append(el("p", `${person(candidate)} · ${candidate.minishop_id}${candidate.username ? ` · @${candidate.username}` : ""}${candidate.telegram_id ? ` · ${this.t("telegram_id")}: ${candidate.telegram_id}` : ""}`),
-          button(this.t("confirm_manager"), () => { this.managerId = candidate.user_id; this.selected = candidate; this.candidate = null; this.render(); }));
-        managers.append(result);
-      } else if (this.searched && !this.selected) {
-        managers.append(el("p", this.t("empty_accounts")));
-        if (this.searchDiagnostic) managers.append(el("small", translate(this.language, "minishop_corp_diagnostic_id").replace("{id}", this.searchDiagnostic)));
-      }
-      if (this.managerId !== null) managers.append(el("p", `${this.t("manager_selected")}: ${this.selected ? person(this.selected) : ""} · ${this.selected?.minishop_id ?? "#" + this.managerId}`, "corp-notice"));
+      const results = el("div", undefined, "corp-stack");
+      const updateManagerResults = (): void => {
+        find.disabled = !this.query.trim();
+        results.replaceChildren();
+        if (this.managerId === null && !this.query.trim()) results.append(el("p", this.t("manager_missing"), "corp-footnote"));
+        if (this.managerId !== null || this.query) results.append(button(this.t("clear_manager"), () => {
+          this.managerId = null; this.query = ""; this.selected = null; this.matches = null;
+          search.value = ""; updateManagerResults(); search.focus();
+        }, "corp-ghost"));
+        if (this.matches) {
+          for (const candidate of this.matches.accounts) {
+            results.append(accountCard(candidate, this.t("confirm_manager"), () => {
+              this.managerId = candidate.user_id; this.selected = candidate; this.matches = null;
+              updateManagerResults();
+            }, this.t("telegram_id")));
+          }
+          if (this.matches.truncated) results.append(el("p", this.t("refine_account_search"), "corp-footnote"));
+          if (!this.matches.accounts.length && !this.selected) {
+            results.append(el("p", this.t("empty_accounts")));
+            if (this.searchDiagnostic) results.append(el("small", translate(this.language, "minishop_corp_diagnostic_id").replace("{id}", this.searchDiagnostic)));
+          }
+        }
+        if (this.managerId !== null) results.append(el("p", `${this.t("manager_selected")}: ${this.selected ? person(this.selected) : ""} · ${this.selected?.minishop_id ?? "#" + this.managerId}`, "corp-notice"));
+      };
+      managers.append(managerRow, el("small", this.t("manager_hint")), results);
+      updateManagerResults();
       const save = el("button", this.t("save"), "corp-button corp-primary"); save.type = "submit";
       const footer = el("div", undefined, "corp-form-footer corp-wide"); footer.append(save, el("p", this.t("conditions_notice"), "corp-footnote"));
       form.append(squadBox, managers, footer);
@@ -190,7 +204,7 @@ export class Editor extends Panel {
       this.original = current; this.name = current.name; this.tariffKey = current.tariff_key;
       this.end = expiryDay(current.ends_at); this.endTouched = false;
       this.managerId = current.manager_user_id; this.squadId = current.external_squad_uuid ?? "";
-      this.query = this.managerId === null ? "" : String(this.managerId); this.selected = null; this.candidate = null; this.searched = false;
+      this.query = this.managerId === null ? "" : String(this.managerId); this.selected = null; this.matches = null;
       this.verified = null; await this.load();
       if (this.alive) this.saved(current);
     });

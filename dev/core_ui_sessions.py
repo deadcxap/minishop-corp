@@ -68,7 +68,8 @@ async def main() -> None:
                             session,
                             {
                                 "user_id": manager_id,
-                                "first_name": "Synthetic manager lookup fixture",
+                                "first_name": f"Менеджер {manager_id}",
+                                "last_name": f"Проверка {user_id}",
                                 "language_code": language,
                                 "telegram_id": user_id + 4_000_000_000,
                             },

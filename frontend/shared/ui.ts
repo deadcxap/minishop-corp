@@ -79,6 +79,8 @@ export abstract class Panel {
   notice: LocaleKey | null = null;
   retry: (() => Promise<void>) | null = null;
   changed: () => void = () => {};
+  private polling = false;
+  private activity = 0;
   constructor(public language: string, client: (signal: AbortSignal) => ApiClient = (signal) => new AdminApi(signal)) {
     this.api = client(this.controller.signal); this.root.append(this.body);
   }
@@ -91,6 +93,7 @@ export abstract class Panel {
   destroy(): void { this.controller.abort(); this.root.remove(); this.retry = null; }
   async run(task: () => Promise<void>, write = false): Promise<void> {
     if (this.busy || !this.alive) return;
+    this.activity++;
     this.busy = true; this.error = null; this.notice = null; this.render(); this.changed();
     try { await task(); this.retry = null; }
     catch (error) {
@@ -98,6 +101,26 @@ export abstract class Panel {
       this.failed(error);
       this.retry = write && (!(error instanceof ApiError) || error.uncertain) ? task : null;
     } finally { this.busy = false; if (this.alive) { this.render(); this.changed(); } }
+  }
+  private canPoll(): boolean {
+    return this.alive && this.root.isConnected && !document.hidden && !this.error && !this.retry && !this.confirming
+      && !this.root.closest('[hidden], [aria-busy="true"]');
+  }
+  protected async poll<T>(read: () => Promise<T>, apply: (data: T) => void): Promise<void> {
+    if (this.polling || !this.canPoll()) return;
+    const activity = this.activity;
+    const current = (): boolean => activity === this.activity && this.canPoll();
+    this.polling = true;
+    try {
+      const data = await read();
+      if (current()) apply(data);
+    } catch (error) {
+      if (current() && error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+        this.error = error;
+        this.failed(error);
+        if (this.alive) { this.render(); this.changed(); }
+      }
+    } finally { this.polling = false; }
   }
   paint(draw: (body: HTMLElement) => void): void {
     const active = this.root.contains(document.activeElement) ? document.activeElement : null;

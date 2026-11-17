@@ -23,6 +23,7 @@ export class AdminView extends Panel {
   drafts: DraftStore | null = null;
   restoredEditor: EditorDraft | null = null;
   initialized = false;
+  private readonly memberCount = el("span");
   constructor(target: HTMLElement, language: string) {
     super(language); this.root.className = "minishop-corp corp-workspace corp-admin"; target.append(this.root);
     for (const event of ["input", "change", "click"]) this.root.addEventListener(event, () => this.persist(), { signal: this.controller.signal });
@@ -56,6 +57,8 @@ export class AdminView extends Panel {
     const editor = this.panels.get("terms");
     this.drafts.write({ contractId: this.current?.id ?? null, tab: this.tab,
       editor: editor instanceof Editor && (this.mode === "new" || editor.dirty() || editor.pending) ? editor.snapshot() : null });
+    const members = this.panels.get("members");
+    if (this.current && members instanceof AdminMembersPanel) this.drafts.writeMemberQuery(this.current.id, members.query);
   }
   override failed(error: unknown): void {
     if (!this.alive) return;
@@ -126,7 +129,12 @@ export class AdminView extends Panel {
       : tab === "invitations" ? new InvitationsPanel(this.language, current)
         : new SynchronizationPanel(this.language, current);
     if (tab === "terms") this.restoredEditor = null;
-    panel.failed = (error) => this.failed(error);
+    if (panel instanceof AdminMembersPanel || panel instanceof SynchronizationPanel) {
+      panel.countChanged = () => this.renderMemberCount();
+    }
+    if (panel instanceof AdminMembersPanel) panel.query = this.drafts?.readMemberQuery(current().id) ?? "";
+    const panelFailed = panel.failed.bind(panel);
+    panel.failed = (error) => { panelFailed(error); this.failed(error); };
     panel.root.id = `corp-panel-${tab}`; panel.root.setAttribute("role", "tabpanel");
     panel.root.setAttribute("aria-labelledby", `corp-tab-${tab}`);
     panel.changed = () => { if (this.alive) this.render(); };
@@ -136,6 +144,9 @@ export class AdminView extends Panel {
     if (this.locked) return;
     this.tab = tab; this.panel(tab); this.render();
     this.root.querySelector<HTMLButtonElement>(`#corp-tab-${tab}`)?.focus();
+  }
+  private renderMemberCount(): void {
+    if (this.current) this.memberCount.textContent = `${this.t("members")}: ${this.current.member_count}`;
   }
   render(): void {
     this.paint((body) => {
@@ -170,8 +181,9 @@ export class AdminView extends Panel {
         const remove = iconButton(this.t("delete_contract"), "trash", () => { void this.removeContract(); }, "corp-danger");
         remove.disabled = this.locked; heading.append(remove);
         const expired = Date.parse(this.current.ends_at) <= Date.now();
+        this.renderMemberCount();
         const info = el("div", undefined, "corp-meta"); info.append(el("span", this.t(expired ? "expired" : "active"), `corp-pill corp-status-${expired ? "expired" : "active"}`),
-          el("span", date(this.current.ends_at, this.language)), el("span", `${this.t("members")}: ${this.current.member_count}`)); body.append(info);
+          el("span", date(this.current.ends_at, this.language)), this.memberCount); body.append(info);
         const nav = el("div", undefined, "corp-tabs"); nav.setAttribute("role", "tablist"); nav.setAttribute("aria-label", this.t("title"));
         for (const tab of tabs) {
           const item = button(this.t(tab), () => this.switchTab(tab)); item.id = `corp-tab-${tab}`; item.dataset.focus = `tab-${tab}`;

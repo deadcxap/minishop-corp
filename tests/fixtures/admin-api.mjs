@@ -3,6 +3,7 @@ export const CONTRACT_ID = "30000000-0000-4000-8000-000000000001";
 export const SQUAD_ID = "20000000-0000-4000-8000-000000000001";
 export const MEMBER_ID = "50000000-0000-4000-8000-000000000001";
 export const MINISHOP_ID = "ms_40000000000040008000000000000001";
+export const NAMESAKE_MINISHOP_ID = "ms_40000000000040008000000000000002";
 export const MEMBER_MINISHOP_ID = "ms_40000000000040008000000000000021";
 export const OTHER_MINISHOP_ID = "ms_40000000000040008000000000000022";
 export const TELEGRAM_ID = 771234567;
@@ -10,6 +11,7 @@ export const DIAGNOSTIC_ID = "1234567890abcdef1234567890abcdef";
 export const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aTgAAAABJRU5ErkJggg==";
 const now = "2030-01-01T00:00:00Z";
 const profile = { user_id: 910011, minishop_id: MINISHOP_ID, first_name: "Fixture", last_name: "Manager", username: "fixture_manager", telegram_url: "https://t.me/fixture_manager" };
+const namesake = { ...profile, user_id: 910012, minishop_id: NAMESAKE_MINISHOP_ID, username: null, telegram_id: null, telegram_url: null };
 const available = (value) => ({ value, state: "available" });
 const unknown = { value: null, state: "unavailable" };
 export function fixture() {
@@ -40,8 +42,14 @@ export function fixture() {
     ] });
     if (p === "/options/accounts") {
       const q = url.searchParams.get("q");
-      const found = url.searchParams.get("user_id") === String(profile.user_id) || ["910011", String(TELEGRAM_ID), MINISHOP_ID, "@fixture_manager", "fixture_manager", "manager@example.invalid"].includes(q);
-      return ok({ accounts: found ? [{ ...profile, minishop_id: MINISHOP_ID, telegram_id: TELEGRAM_ID }] : [], next_page: null });
+      const internalId = url.searchParams.get("user_id");
+      const primary = { ...profile, telegram_id: TELEGRAM_ID };
+      const found = internalId === String(profile.user_id) || ["910011", String(TELEGRAM_ID), MINISHOP_ID, "@fixture_manager", "fixture_manager", "manager@example.invalid"].includes(q);
+      if (q === "Fixture Manager") {
+        return ok({ accounts: [primary, namesake], next_page: null, truncated: true });
+      }
+      const accounts = found ? [primary] : internalId === String(namesake.user_id) || q === NAMESAKE_MINISHOP_ID ? [namesake] : [];
+      return ok({ accounts, next_page: null, truncated: false });
     }
     if (p === "/options/squad") return url.searchParams.get("uuid") === SQUAD_ID ? ok({ squad: { uuid: SQUAD_ID, name: "Fixture external squad" } }) : fail("minishop_corp_squad_unavailable", 422);
     if (p === "/contracts") {
@@ -99,7 +107,8 @@ export function fixture() {
           if (current.version !== body.expected_version) return fail("minishop_corp_version_conflict", 409);
           if (state.members.some(row => row.profile.user_id === body.user_id)) return fail("minishop_corp_already_member", 409);
           const operation = { id: body.request_id, membership_id: body.request_id, kind: "join", state: "pending", attempts: 0, error_code: null, next_attempt_at: now, updated_at: now };
-          state.members.push({ ...state.members[1], id: body.request_id, profile: { ...profile, user_id: body.user_id }, state: "pending", operation });
+          const chosen = body.user_id === namesake.user_id ? namesake : profile;
+          state.members.push({ ...state.members[1], id: body.request_id, profile: { ...chosen, user_id: body.user_id }, state: "pending", operation });
           current.member_count++; state.additions.set(body.request_id, operation); return ok({ operation });
         }
         return ok({ members: state.members, next_after: null });
