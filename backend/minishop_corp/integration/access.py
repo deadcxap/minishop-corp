@@ -40,7 +40,7 @@ from .access_types import (
     TrialAccess,
     panel_time,
 )
-from .billing import require_clear_billing
+from .billing import record_grant_opt_out, require_clear_billing
 
 SOURCE = "minishop-corp"
 
@@ -82,7 +82,7 @@ class AccessAdapter:
         """Read both sides under the account lock; only repair confirmed differences."""
         user = await self._lock_user(session, user_id)
         row = await self._current(session, user_id)
-        self._require_resolved_renewal(row)
+        await self._require_resolved_renewal(session, row)
         await self._require_supported_quotas(session, row)
         tariff = self._period_tariff(target.tariff_key)
         if row is not None and await self._period_matches(session, user, row, tariff, target):
@@ -199,7 +199,7 @@ class AccessAdapter:
     ) -> AccessState:
         user = await self._lock_user(session, user_id)
         previous = await self._current(session, user_id)
-        self._require_resolved_renewal(previous)
+        await self._require_resolved_renewal(session, previous)
         await self._require_supported_quotas(session, previous)
         tariff = self._period_tariff(target.tariff_key)
         previous_squads = self._managed_squads(previous)
@@ -251,6 +251,7 @@ class AccessAdapter:
                 **self._period_values(tariff, target, now),
             },
         )
+        await record_grant_opt_out(session, row)
         state = AccessState.model_validate(row)
         limits = await self._period_limits(session, row, tariff, now)
         await subscription_dal.update_subscription(session, state.subscription_id, limits)
@@ -367,7 +368,7 @@ class AccessAdapter:
         row = await self._current(session, user_id)
         if row is None:
             raise AccessError(AccessFailure.SUBSCRIPTION_MISSING)
-        self._require_resolved_renewal(row)
+        await self._require_resolved_renewal(session, row)
         await self._require_supported_quotas(session, row)
         state = AccessState.model_validate(row)
         repeated = (
@@ -472,6 +473,7 @@ class AccessAdapter:
             if row is None:
                 raise AccessError(AccessFailure.SUBSCRIPTION_MISSING)
             state = AccessState.model_validate(row)
+        await record_grant_opt_out(session, row)
         await subscription_dal.update_subscription(
             session,
             state.subscription_id,
@@ -507,7 +509,7 @@ class AccessAdapter:
         row = await self._current(session, user_id)
         if row is None:
             raise AccessError(AccessFailure.SUBSCRIPTION_MISSING)
-        self._require_resolved_renewal(row)
+        await self._require_resolved_renewal(session, row)
         await self._require_supported_quotas(session, row)
         state = AccessState.model_validate(row)
         previous = self._managed_squads(row)
@@ -672,8 +674,12 @@ class AccessAdapter:
             raise AccessError(AccessFailure.TRIAL_UNAVAILABLE)
 
     @staticmethod
-    def _require_resolved_renewal(row: Subscription | None) -> None:
-        if row is not None and AccessState.model_validate(row).auto_renew_enabled:
+    async def _require_resolved_renewal(session: AsyncSession, row: Subscription | None) -> None:
+        if row is None:
+            return
+        # The host wallet scheduler locks the subscription without locking the account.
+        await session.refresh(row, with_for_update=True)
+        if row.auto_renew_enabled:
             # Q-03: require native cancellation, never cancel an external recurrence here.
             raise AccessError(AccessFailure.RENEWAL_POLICY_REQUIRED)
 

@@ -67,7 +67,8 @@ try {
     assert.equal(await editor.evaluate(() => window.opener), null);
     assert.equal(new URL(editor.url()).searchParams.get("broadcast_target"), target);
     const form = editor.locator(".admin-form").filter({has: editor.locator(".broadcast-setup-grid")});
-    assert.match(await form.locator(".broadcast-audience-control").innerText(), new RegExp(`Broadcast ${language} ${width}`));
+    const audience = form.locator(".broadcast-audience-control");
+    await audience.getByText(new RegExp(`Broadcast ${language} ${width}`)).waitFor();
     await form.locator('[contenteditable="true"]').first().fill("Synthetic corporate broadcast — not sent");
     await form.locator('.broadcast-schedule-toggle [role="checkbox"]').click();
     const response = editor.waitForResponse(reply => new URL(reply.url()).pathname === "/api/admin/broadcast" && reply.request().method() === "POST");

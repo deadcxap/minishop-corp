@@ -14,6 +14,7 @@ from .migration_0008 import upgrade as invitation_previews
 from .migration_0009 import upgrade as visible_invitation_codes
 from .migration_0010 import upgrade as multiple_invitation_codes
 from .migration_0011 import upgrade as broadcast_audiences
+from .migration_0012 import upgrade as grant_renewal_opt_out
 
 # Fixed, namespaced schema; all constraints/indexes belong to plugin tables.
 INITIAL_DDL = (
@@ -225,5 +226,10 @@ def migrations() -> list[Migration]:
             id="minishop-corp.0011_broadcast_audiences",
             description="Persist immutable selections for native corporate broadcasts",
             upgrade=broadcast_audiences,
+        ),
+        Migration(
+            id="minishop-corp.0012_grant_renewal_opt_out",
+            description="Record disabled auto-renewal for existing corporate grants",
+            upgrade=grant_renewal_opt_out,
         ),
     ]

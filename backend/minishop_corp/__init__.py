@@ -7,12 +7,13 @@ from bot.plugins.extensions import ExtensionContributions
 from bot.plugins.spec import WEB_SCOPE_WEBAPP, Plugin, PluginContext, WorkerTaskSpec
 
 from .api import setup_routes
+from .integration.admin_users import with_admin_users
 from .integration.broadcasts import setup_broadcast_web, setup_broadcasts
 from .integration.migrations import Migration, migrations
 from .integration.views import view_policy
 from .integration.worker import run_operations, run_reconciliation_task
 
-__version__ = "1.1.2"
+__version__ = "1.1.3"
 
 
 class CorporatePlugin(Plugin):
@@ -28,7 +29,7 @@ class CorporatePlugin(Plugin):
         return migrations()
 
     def extensions(self, ctx: PluginContext) -> ExtensionContributions:
-        return ExtensionContributions(view_policy=view_policy)
+        return with_admin_users(ExtensionContributions(view_policy=view_policy), ctx)
 
     def setup_web(self, ctx: PluginContext, app: web.Application, *, scope: str) -> None:
         if scope == WEB_SCOPE_WEBAPP:

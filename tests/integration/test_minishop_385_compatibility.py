@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from importlib.util import find_spec
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -27,6 +28,7 @@ from minishop_corp.integration.access import AccessAdapter
 from minishop_corp.integration.access_types import AccessError, AccessFailure, PeriodAccess
 from minishop_corp.integration.broadcasts import CorporateAudienceService
 from minishop_corp.integration.contracts import ContractHost
+from minishop_corp.membership_types import DepartMembership
 from minishop_corp.memberships import Memberships
 from minishop_corp.storage.schema import Contract, Membership, Operation, Reservation
 from sqlalchemy import func, select
@@ -205,8 +207,8 @@ async def test_multiple_native_targets_include_corporate_members_once(
     assert saved["recipient_count"] == saved["total_deliveries"] == len(expected)
 
 
-@pytest.mark.parametrize("before", ["new", "paid"])
-async def test_balance_scheduler_cannot_renew_corporate_period(host: Host, before: str) -> None:
+@pytest.mark.parametrize("before", ["new", "paid", "leave", "exclude"])
+async def test_balance_scheduler_cannot_renew_corporate_grant(host: Host, before: str) -> None:
     from bot.services.auto_renew_retry_worker import AutoRenewRetryWorker
     from bot.services.balance_recurring import BalanceRecurringService
     from bot.services.user_balance_service import UserBalanceService
@@ -237,27 +239,44 @@ async def test_balance_scheduler_cannot_renew_corporate_period(host: Host, befor
     )
     assert recurring.recurring_active
     host.service.recurring_provider_services["user_balance"] = recurring
-    await seed_personal(host, before)
     adapter = AccessAdapter(host.service)
-    if before == "paid":
-        sub = await subscription_dal.get_active_subscription_by_user_id(host.session, USER_ID)
-        assert sub is not None
-        await subscription_dal.update_subscription(
+    if before in {"leave", "exclude"}:
+        host.settings.TRIAL_DURATION_DAYS = 1
+        draft, member_id = await joined(host)
+        departure = await Memberships(ContractHost(host.service)).depart(
             host.session,
-            sub.subscription_id,
-            {"provider": "user_balance", "auto_renew_enabled": True},
+            USER_ID,
+            member_id,
+            DepartMembership(request_id=uuid4()),
+            scope="self" if before == "leave" else "manager",
+            contract_id=draft.offer.contract_id,
         )
-        with pytest.raises(AccessError) as error:
-            await adapter.validate_join(host.session, USER_ID)
-        assert error.value.code == AccessFailure.RENEWAL_POLICY_REQUIRED
-        # Represent the user's separate native opt-out, required before joining.
-        await subscription_dal.update_subscription(
-            host.session, sub.subscription_id, {"auto_renew_enabled": False}
-        )
-    await adapter.validate_join(host.session, USER_ID)
-    expected = PeriodAccess("corp", datetime.now(UTC) + timedelta(minutes=30), EXTERNAL_SQUAD)
-    assigned = await adapter.assign_period(host.session, USER_ID, expected)
-    assert assigned.provider == "admin" and not assigned.auto_renew_enabled
+        assert await execute(host, departure.id)
+        assigned = await adapter.read(host.session, USER_ID)
+        assert assigned is not None and assigned.provider == "trial"
+    else:
+        await seed_personal(host, before)
+        if before == "paid":
+            sub = await subscription_dal.get_active_subscription_by_user_id(host.session, USER_ID)
+            assert sub is not None
+            await subscription_dal.update_subscription(
+                host.session,
+                sub.subscription_id,
+                {"provider": "user_balance", "auto_renew_enabled": True},
+            )
+            with pytest.raises(AccessError) as error:
+                await adapter.validate_join(host.session, USER_ID)
+            assert error.value.code == AccessFailure.RENEWAL_POLICY_REQUIRED
+            await subscription_dal.set_auto_renew(host.session, sub.subscription_id, False)
+        await adapter.validate_join(host.session, USER_ID)
+        terms = PeriodAccess("corp", datetime.now(UTC) + timedelta(minutes=30), EXTERNAL_SQUAD)
+        assigned = await adapter.assign_period(host.session, USER_ID, terms)
+        assert assigned.provider == "admin"
+    assert not assigned.auto_renew_enabled
+    row = await subscription_dal.get_subscription_by_id_for_update(
+        host.session, assigned.subscription_id
+    )
+    assert row is not None and row.auto_renew_consent_version == 1
     funded = await user_balance_dal.balance_minor(host.session, USER_ID, balance.currency)
     assert funded > 0
     sessions, _ = services(host)

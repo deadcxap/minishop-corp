@@ -6,10 +6,12 @@ resolves only our namespace from durable plugin data. No core class, global meth
 route, delivery queue or core table is modified.
 """
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from importlib import import_module
 from importlib.util import find_spec
-from typing import Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 from uuid import UUID
 
 from aiohttp import web
@@ -30,6 +32,15 @@ from ..broadcasts import CONTRACT_PREFIX, PREFIX, SELECTION_PREFIX, contract_tar
 from ..storage.schema import BroadcastAudience, Contract, Membership
 from .worker import sessions_for
 
+if TYPE_CHECKING:
+    # This type is only shipped by Minishop versions with device platform audiences.
+    from bot.services.device_platform_audiences import (  # type: ignore[import, unused-ignore]
+        PlatformGroup,
+    )
+
+type _PlatformGroups = dict[str, PlatformGroup]
+type _CorporateTargets = dict[str, tuple[AudienceDefinition, list[UUID] | None]]
+
 
 class _AudienceExclusions(Protocol):
     async def excluded_ids_by_target(
@@ -40,6 +51,15 @@ class _AudienceExclusions(Protocol):
 @runtime_checkable
 class _UserAudiences(Protocol):
     async def user_audiences(self, user_id: int) -> list[str]: ...
+
+
+@runtime_checkable
+class _PlatformAudiences(Protocol):
+    async def platform_groups(self, *, user_id: int | None = None) -> _PlatformGroups: ...
+
+    def audiences(self, platforms: _PlatformGroups | None = None) -> list[AudienceDefinition]: ...
+
+    async def counts(self, platforms: _PlatformGroups | None = None) -> dict[str, int | None]: ...
 
 
 async def _excluded_ids(session: AsyncSession, target: str | None = None) -> dict[str, set[int]]:
@@ -60,6 +80,7 @@ class CorporateAudienceService(AudienceSegmentationService):
             native.session_factory, panel_service=native.panel_service, tariffs=native.tariffs
         )
         self.native = native
+        self._platform_native = native if isinstance(native, _PlatformAudiences) else None
         self.sessions = sessions
         self.catalog: list[AudienceDefinition] = []
 
@@ -85,8 +106,26 @@ class CorporateAudienceService(AudienceSegmentationService):
             return parse_target(normalized) is not None
         return self.native.is_target_available(target)
 
-    def audiences(self) -> list[AudienceDefinition]:
-        return [*self.native.audiences(), *self.catalog]
+    async def platform_groups(self, *, user_id: int | None = None) -> _PlatformGroups:
+        if self._platform_native is None:
+            return {}
+        try:
+            return await self._platform_native.platform_groups(user_id=user_id)
+        finally:
+            if user_id is None:
+                # The native route reads the catalog immediately after this call, even if
+                # the panel inventory failed. Publish it after the last awaited I/O.
+                async with self.sessions() as session:
+                    targets = await self._corporate_targets(session)
+                self.catalog = [definition for definition, _ in targets.values()]
+
+    def audiences(self, platforms: _PlatformGroups | None = None) -> list[AudienceDefinition]:
+        native = (
+            self.native.audiences()
+            if self._platform_native is None
+            else self._platform_native.audiences(platforms)
+        )
+        return [*native, *self.catalog]
 
     async def user_audiences(self, user_id: int) -> list[str]:
         # The original instance owns native settings and registered providers.
@@ -163,12 +202,15 @@ class CorporateAudienceService(AudienceSegmentationService):
             excluded = await _excluded_ids(session, normalized)
             return list(await session.scalars(self._members(ids, excluded.get(normalized, set()))))
 
-    async def counts(self) -> dict[str, int | None]:
-        counts = await self.native.counts()
+    async def counts(self, platforms: _PlatformGroups | None = None) -> dict[str, int | None]:
+        counts = (
+            await self.native.counts()
+            if self._platform_native is None
+            else await self._platform_native.counts(platforms)
+        )
         async with self.sessions() as session:
+            targets = await self._corporate_targets(session)
             excluded = await _excluded_ids(session)
-            rows = (await session.execute(select(Contract.id, Contract.name))).all()
-            names = {identifier: name for identifier, name in rows}
             grouped = (
                 await session.execute(
                     select(Membership.contract_id, func.count(Membership.id))
@@ -190,48 +232,52 @@ class CorporateAudienceService(AudienceSegmentationService):
                 assert result is not None
                 return result
 
-            catalog = [
-                self.definition(contract_target(identifier), name)
-                for identifier, name in sorted(rows, key=lambda row: (row[1], row[0]))
-            ]
-            for identifier in names:
-                target = contract_target(identifier)
-                counts[target] = await count(target, [identifier])
-            selections = list(await session.scalars(select(BroadcastAudience)))
-            for selection in sorted(selections, key=lambda item: item.id):
-                ids = [UUID(value) for value in selection.contract_ids]
-                target = (
-                    contract_target(ids[0])
-                    if len(ids) == 1
-                    else SELECTION_PREFIX + selection.id.hex
-                )
-                if not ids or any(identifier not in names for identifier in ids):
-                    # Keep the target selectable, labelled unavailable, so the
-                    # native editor preserves it instead of resetting to "all".
-                    # Actual sending still fails in resolve_user_ids above.
-                    catalog.append(
-                        AudienceDefinition(
-                            target=target,
-                            label_key="minishop_corp_broadcast_unavailable",
-                            fallback_label="Unavailable corporate audience",
-                            order=600,
-                            group_label_key="minishop_corp_broadcast_group",
-                            group_fallback_label="Corporate subscriptions",
-                        )
-                    )
-                    counts[target] = None
-                    continue
-                if len(ids) == 1:
-                    continue
-                label = " + ".join(names[identifier] for identifier in ids)
-                catalog.append(
-                    self.definition(target, label if len(label) <= 240 else label[:239] + "…")
-                )
-                counts[target] = await count(target, ids)
+            for target, (_, identifiers) in targets.items():
+                counts[target] = await count(target, identifiers) if identifiers else None
         # Publish only a complete catalog. An unavailable database never becomes
         # an empty audience or a fabricated zero count.
-        self.catalog = catalog
+        self.catalog = [definition for definition, _ in targets.values()]
         return counts
+
+    async def _corporate_targets(self, session: AsyncSession) -> _CorporateTargets:
+        rows = await session.execute(
+            select(Contract.id, Contract.name).order_by(Contract.name, Contract.id)
+        )
+        names = {identifier: name for identifier, name in rows}
+        targets: _CorporateTargets = {
+            contract_target(identifier): (
+                self.definition(contract_target(identifier), name),
+                [identifier],
+            )
+            for identifier, name in names.items()
+        }
+        for selection in await session.scalars(
+            select(BroadcastAudience).order_by(BroadcastAudience.id)
+        ):
+            ids = [UUID(value) for value in selection.contract_ids]
+            target = (
+                contract_target(ids[0]) if len(ids) == 1 else SELECTION_PREFIX + selection.id.hex
+            )
+            if not ids or any(identifier not in names for identifier in ids):
+                # The editor retains the saved target. resolve_user_ids rejects delivery.
+                targets[target] = (
+                    AudienceDefinition(
+                        target=target,
+                        label_key="minishop_corp_broadcast_unavailable",
+                        fallback_label="Unavailable corporate audience",
+                        order=600,
+                        group_label_key="minishop_corp_broadcast_group",
+                        group_fallback_label="Corporate subscriptions",
+                    ),
+                    None,
+                )
+            elif len(ids) > 1:
+                label = " + ".join(names[identifier] for identifier in ids)
+                targets[target] = (
+                    self.definition(target, label if len(label) <= 240 else label[:239] + "…"),
+                    ids,
+                )
+        return targets
 
     @staticmethod
     def definition(target: str, label: str) -> AudienceDefinition:

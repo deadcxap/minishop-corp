@@ -46,6 +46,7 @@ def test_installed_entry_point_and_worker_hooks(context: PluginContext) -> None:
         "minishop-corp.0009_visible_invitation_codes",
         "minishop-corp.0010_multiple_invitation_codes",
         "minishop-corp.0011_broadcast_audiences",
+        "minishop-corp.0012_grant_renewal_opt_out",
     ]
 
 

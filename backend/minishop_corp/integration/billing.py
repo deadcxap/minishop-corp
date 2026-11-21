@@ -1,4 +1,4 @@
-"""Read-only Q-03 gate. No cancellation, charge, payment mutation or provider client.
+"""Billing checks and the native opt-out for grants issued by the plugin.
 
 The native DAL has no user-scoped query for all nonterminal payment/cycle states.
 Those two bounded EXISTS reads use host ORM models here; mutations remain native.
@@ -15,11 +15,35 @@ from db.dal import (
     tribute_dal,
     wata_subscription_dal,
 )
-from db.models import AutoRenewCycle, Payment
-from sqlalchemy import func, select
+from db.models import AutoRenewCycle, Payment, Subscription
+from sqlalchemy import ColumnExpressionArgument, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.selectable import Exists
 
 from .access_types import AccessError, AccessFailure, AccessState
+
+
+def open_renewal_cycle(subscription_id: ColumnExpressionArgument[int] | int) -> Exists:
+    return (
+        select(AutoRenewCycle.cycle_id)
+        .where(
+            AutoRenewCycle.subscription_id == subscription_id,
+            AutoRenewCycle.state.in_(auto_renew_dal.OPEN_CYCLE_STATES),
+        )
+        .exists()
+    )
+
+
+async def record_grant_opt_out(session: AsyncSession, row: Subscription) -> None:
+    """Record explicit disabled renewal on a locked corporate period or departure trial."""
+    if row.auto_renew_consent_version != 0:
+        return
+    subscription_id = int(row.subscription_id)
+    if row.auto_renew_enabled or await session.scalar(select(open_renewal_cycle(subscription_id))):
+        raise AccessError(AccessFailure.RENEWAL_POLICY_REQUIRED)
+    # A false flag with consent version zero still qualifies for funded grant renewal.
+    if await subscription_dal.set_auto_renew(session, subscription_id, False) is None:
+        raise AccessError(AccessFailure.SUBSCRIPTION_MISSING)
 
 
 async def _has_live_provider_mandate(session: AsyncSession, user_id: int) -> bool:

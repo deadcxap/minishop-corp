@@ -256,7 +256,7 @@ async def main() -> None:
                             "SELECT count(*) FROM schema_migrations WHERE id LIKE 'minishop-corp.%'"
                         )
                     )
-                ) == 11
+                ) == len(loaded.migrations())
                 return rows
 
         before = await snapshot()
@@ -357,7 +357,7 @@ async def main() -> None:
             codes = (await response.json())["invitations"]
             restored = next(row for row in codes if row["id"] == saved_invite_id)
             assert restored["code"] == saved_code
-        print("PASS: reinstall reuses all eleven migrations without data loss")
+        print("PASS: reinstall reuses all plugin migrations without data loss")
         await audience_present()
         print("PASS: corporate audience survives restart/reinstall and fails closed while disabled")
         print("PASS: authorized invitation list retains the same visible code after reinstall")
